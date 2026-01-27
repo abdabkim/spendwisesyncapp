@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Upload Receipt - SpendWise Sync</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            min-height: 100dvh;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-white min-h-screen flex flex-col">
+<div class="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-50">
+<div class="text-white flex size-12 shrink-0 items-center justify-start">
+<span class="material-symbols-outlined cursor-pointer">arrow_back_ios</span>
+</div>
+<h2 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Add Receipt</h2>
+<div class="size-12 flex items-center justify-end">
+<span class="material-symbols-outlined cursor-pointer">help_outline</span>
+</div>
+</div>
+<main class="max-w-md mx-auto w-full flex-1">
+<div class="px-4 pt-5 pb-3">
+<h2 class="text-white tracking-light text-[28px] font-bold leading-tight">Upload Receipt</h2>
+<p class="text-gray-400 text-base font-normal leading-normal pt-2">Choose a method to digitize your document for smart OCR extraction.</p>
+</div>
+<div class="grid grid-cols-[repeat(auto-fit,minmax(158px,1fr))] gap-3 p-4">
+<div class="bg-cover bg-center flex flex-col gap-3 rounded-xl justify-end p-4 aspect-square border-2 border-primary/20 hover:border-primary transition-colors cursor-pointer" data-alt="Modern smartphone camera lens close up with blue highlights" style='background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.2) 100%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuALgy7oDwPJ3sJsPdY3irosoCtImoUJqjg0ichumkuhEJwA7bXdHY0jv_Z3g0Senr32FUhoyRR7_i5bMVEatJZQfA18yF-JYzxTylfu-vjnegUkqMY5JWraHCn5lhaJfZ5pOPpdL9kuUxDrBtVVJ5eOpVfY8eP0qi_aokWSUJ0GQKGWqdejIvqdPLoZ1fWqx9d4XjB9uhCcxixhASTkKRi4i8lQxiBsnrHWeGzOxJw4EGWLUUNib7gOBEJx0px49YJXx1OEv8dWTpSB");'>
+<span class="material-symbols-outlined text-primary text-3xl">photo_camera</span>
+<p class="text-white text-lg font-bold leading-tight">Camera Upload</p>
+</div>
+<div class="bg-cover bg-center flex flex-col gap-3 rounded-xl justify-end p-4 aspect-square border-2 border-transparent hover:border-primary/50 transition-colors cursor-pointer" data-alt="Digital photo gallery organized on a screen" style='background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.2) 100%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuAcpnFQOK5MXpNsZqB0UD7XUOn3FccarQciyt6Jo28QjinvCLfCiezA6DqPgXifkZCbFhBKl1mQyBWMZhPn-q488OoALzxy9coMvO6B2DsbGaZRSF3OSG0fcORXGRjJbp6nZcZGov_UAJPjSqYVBgCF8ptiGb-WXrC6uVbkjUwLhGUSqrsNcKgBNwgLDpEK_atV5UWrBc_iePdhNPNX3dMOufsCt7jul3OCG-iOjkgnIM1ffUJp_RKeE74fRZ9XW3TG8VUfs8GG8Smu");'>
+<span class="material-symbols-outlined text-primary text-3xl">image</span>
+<p class="text-white text-lg font-bold leading-tight">Gallery Upload</p>
+</div>
+<div class="bg-cover bg-center flex flex-col gap-3 rounded-xl justify-end p-4 aspect-square border-2 border-transparent hover:border-primary/50 transition-colors cursor-pointer" data-alt="Abstract representation of digital PDF documents" style='background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.2) 100%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuDblwEBvJ11Qcy9Q3P4-1UzlfbN6wfjtXBJB3R6GIIY6IfSmOxSu14pAbdE6Bnoty7ttcX5Z0L2tEabJcyi-Cjc4wkmc5jiUORWjxZWsP0ikrHd7HrGkIl-dVgW0EnamoTRlvsgtfx73IFp5H0gEEYJb2HfBLyhdSGg8Mrvkep9Og_z0mv_wgCaagW-1EEnmaf0Ags7Kuw6xUjKnMqkPHPGKGSVGYx9pXnHuEQrySy-ft47U4ZKsisJD7WyfKi_Daymcqri--_e4Y6d");'>
+<span class="material-symbols-outlined text-primary text-3xl">picture_as_pdf</span>
+<p class="text-white text-lg font-bold leading-tight">PDF Upload</p>
+</div>
+</div>
+<div class="mt-6 px-4">
+<div class="bg-primary/10 border border-primary/20 rounded-xl p-5 relative overflow-hidden">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-white text-lg font-bold leading-tight tracking-[-0.015em]">OCR Extraction Status</h3>
+<span class="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
+</div>
+<div class="flex items-start gap-4">
+<div class="size-16 rounded-lg bg-gray-800 flex-shrink-0 border border-gray-700 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover opacity-50" data-alt="Small thumbnail preview of a paper receipt" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB-0ikOVjJcXn7mXaw5Z9-xdc6olBTGm1ue0cX4Z-DQ8MPbIoImdOuKuoFRAqZ51iA892oVS1lvsPZSxcESgRo_bXKXwFOmlQxzhsM3bWFDjsAbENLs3vSbJs7YdKnoZZBUoEt_qfNck4hf09K3pshoauYJcJpeLWPKKLIdajtDrpEf6NWddR2CAFeBWmuHpvB20P33Htscn_HGU1VRM8fFXC6-2GbLWy7TkCcrq-CJuDM41leotrw_oa80MulcA2_AczNbYG-CASBm"/>
+</div>
+<div class="flex-1">
+<p class="text-white text-sm font-bold mb-1">Scanning "Starbucks_Receipt.jpg"</p>
+<p class="text-gray-400 text-xs">Our AI is extracting merchant, date, and total amount...</p>
+<div class="w-full bg-gray-800 h-1.5 rounded-full mt-3 overflow-hidden">
+<div class="bg-primary h-full w-[65%] rounded-full shadow-[0_0_8px_#13a4ec]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-4 mt-8 flex flex-col gap-3">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">edit_note</span>
+                Manual Correction
+            </button>
+<p class="text-center text-gray-500 text-sm">
+                Can't wait? You can enter details manually anytime.
+            </p>
+</div>
+<div class="mt-4 px-4 pb-12">
+<h3 class="text-white text-sm font-bold uppercase tracking-wider text-gray-500 mb-3">Recent Uploads</h3>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg border border-gray-800">
+<div class="flex items-center gap-3">
+<div class="size-10 bg-green-500/20 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+</div>
+<div>
+<p class="text-sm font-bold">Apple Store</p>
+<p class="text-xs text-gray-500">Yesterday • $1,299.00</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-gray-600">chevron_right</span>
+</div>
+<div class="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg border border-gray-800">
+<div class="flex items-center gap-3">
+<div class="size-10 bg-green-500/20 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+</div>
+<div>
+<p class="text-sm font-bold">Whole Foods</p>
+<p class="text-xs text-gray-500">Oct 24 • $84.20</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-gray-600">chevron_right</span>
+</div>
+</div>
+</div>
+</main>
+
+</body></html>

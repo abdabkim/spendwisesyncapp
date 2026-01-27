@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SpendWise Sync - Sign Up</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                        "surface-dark": "#1c262c",
+                        "border-dark": "#2d3b42",
+                        "text-secondary": "#9db0b9",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .material-symbols-outlined {
+                font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            }::-webkit-scrollbar {
+                width: 6px;
+            }
+            ::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: #2d3b42; 
+                border-radius: 3px;
+            }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white antialiased overflow-x-hidden min-h-screen flex flex-col items-center justify-center">
+<div class="relative w-full max-w-md h-full min-h-screen bg-background-light dark:bg-background-dark flex flex-col shadow-2xl overflow-hidden">
+<input class="peer hidden" id="modal-toggle" type="checkbox"/>
+<div class="flex items-center px-4 py-4 justify-between z-10">
+<button class="text-slate-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-surface-dark transition-colors">
+<span class="material-symbols-outlined" style="font-size: 24px;">arrow_back</span>
+</button>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-10">Sign Up</h2>
+</div>
+<div class="flex-1 overflow-y-auto pb-8">
+<div class="px-6 pt-4 pb-2">
+<h1 class="text-slate-900 dark:text-white tracking-tight text-[32px] font-extrabold leading-tight text-left">Create Account</h1>
+<p class="text-slate-500 dark:text-text-secondary text-base font-normal leading-normal pt-2">Start managing your finances smarter today.</p>
+</div>
+<div class="flex flex-col gap-5 px-6 py-6">
+<div class="flex flex-col gap-4">
+<button class="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark py-3.5 px-4 text-slate-900 dark:text-white font-bold text-base hover:bg-slate-50 dark:hover:bg-[#25323a] active:scale-[0.98] transition-all">
+<svg class="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
+<path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path>
+<path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"></path>
+<path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"></path>
+</svg>
+                        Sign up with Google
+                    </button>
+<div class="relative flex items-center py-2">
+<div class="flex-grow border-t border-slate-200 dark:border-border-dark"></div>
+<span class="flex-shrink-0 mx-4 text-slate-400 dark:text-text-secondary text-sm font-medium">Or sign up with email</span>
+<div class="flex-grow border-t border-slate-200 dark:border-border-dark"></div>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-slate-900 dark:text-white text-sm font-semibold leading-normal">Full Name</label>
+<div class="relative group">
+<span class="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 dark:text-text-secondary group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-size: 20px;">person</span>
+</span>
+<input class="form-input block w-full rounded-lg border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:border-primary focus:ring-primary h-14 pl-11 placeholder:text-slate-400 dark:placeholder:text-text-secondary text-base font-normal transition-all" placeholder="Enter your full name" type="text"/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-slate-900 dark:text-white text-sm font-semibold leading-normal">Email Address</label>
+<div class="relative group">
+<span class="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 dark:text-text-secondary group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-size: 20px;">mail</span>
+</span>
+<input class="form-input block w-full rounded-lg border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:border-primary focus:ring-primary h-14 pl-11 placeholder:text-slate-400 dark:placeholder:text-text-secondary text-base font-normal transition-all" placeholder="name@example.com" type="email"/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-slate-900 dark:text-white text-sm font-semibold leading-normal">Password</label>
+<div class="relative group">
+<span class="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 dark:text-text-secondary group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-size: 20px;">lock</span>
+</span>
+<input class="form-input block w-full rounded-lg border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:border-primary focus:ring-primary h-14 pl-11 pr-12 placeholder:text-slate-400 dark:placeholder:text-text-secondary text-base font-normal transition-all" placeholder="Create a password" type="password"/>
+<button class="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 dark:text-text-secondary hover:text-primary transition-colors focus:outline-none">
+<span class="material-symbols-outlined" style="font-size: 20px;">visibility_off</span>
+</button>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-slate-900 dark:text-white text-sm font-semibold leading-normal">Confirm Password</label>
+<div class="relative group">
+<span class="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 dark:text-text-secondary group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-size: 20px;">lock_reset</span>
+</span>
+<input class="form-input block w-full rounded-lg border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:border-primary focus:ring-primary h-14 pl-11 pr-12 placeholder:text-slate-400 dark:placeholder:text-text-secondary text-base font-normal transition-all" placeholder="Repeat password" type="password"/>
+</div>
+</div>
+<div class="flex items-center gap-3 pt-2">
+<div class="relative flex items-center">
+<input class="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-300 dark:border-border-dark bg-white dark:bg-surface-dark transition-all checked:border-primary checked:bg-primary hover:border-primary focus:ring-0 focus:ring-offset-0" id="terms" type="checkbox"/>
+<span class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
+<span class="material-symbols-outlined" style="font-size: 16px;">check</span>
+</span>
+</div>
+<label class="text-sm font-medium text-slate-600 dark:text-text-secondary cursor-pointer select-none" for="terms">
+                        I agree to the <a class="text-primary hover:underline" href="#">Terms &amp; Conditions</a>
+</label>
+</div>
+<div class="pt-4">
+<label class="cursor-pointer flex w-full items-center justify-center rounded-lg bg-primary py-4 px-4 text-white font-bold text-base hover:bg-sky-500 active:scale-[0.98] transition-all shadow-[0_4px_14px_0_rgba(19,164,236,0.39)]" for="modal-toggle">
+                        Create Account
+                    </label>
+</div>
+<div class="flex justify-center pt-2">
+<p class="text-sm font-medium text-slate-600 dark:text-text-secondary">
+                        Already have an account? <a class="text-primary font-bold hover:underline" href="#">Log In</a>
+</p>
+</div>
+</div>
+</div>
+<div class="absolute inset-0 z-50 hidden flex-col items-center justify-center bg-background-dark/80 backdrop-blur-sm p-4 peer-checked:flex opacity-0 peer-checked:opacity-100 transition-opacity duration-300">
+<div class="w-full max-w-[340px] rounded-2xl bg-white dark:bg-surface-dark p-6 shadow-2xl transform scale-95 peer-checked:scale-100 transition-transform duration-300 border border-slate-100 dark:border-border-dark">
+<div class="flex flex-col items-center text-center">
+<div class="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+<div class="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/40">
+<span class="material-symbols-outlined" style="font-size: 32px;">check</span>
+</div>
+</div>
+<h3 class="mb-2 text-xl font-bold text-slate-900 dark:text-white">Welcome Aboard!</h3>
+<p class="mb-6 text-sm text-slate-500 dark:text-text-secondary leading-relaxed">
+                        Your account has been successfully created. Let's set up your first budget to get started.
+                    </p>
+<label class="cursor-pointer flex w-full items-center justify-center rounded-lg bg-primary py-3 px-4 text-white font-bold text-sm hover:bg-sky-500 transition-colors" for="modal-toggle">
+                        Get Started
+                    </label>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>

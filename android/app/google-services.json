@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "711733320742",
+    "project_id": "spendwisesyncapp",
+    "storage_bucket": "spendwisesyncapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:711733320742:android:40a9dc1d77f44c062c9ae7",
+        "android_client_info": {
+          "package_name": "com.example.spendwisesyncapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "711733320742-bt97m3mcd1adus4pcc921h8d5vm1npnr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.spendwisesyncapp",
+            "certificate_hash": "4b2bad721c16f075c02a9df40ca97088f952a575"
+          }
+        },
+        {
+          "client_id": "711733320742-4l9lf4di4jmc0gbhc7o6dej6htr0rmnp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-Adn7rGzsZvOLJ2RpxvkLdJpyx6At1k8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "711733320742-4l9lf4di4jmc0gbhc7o6dej6htr0rmnp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

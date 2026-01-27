@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Add Todo - SpendWise Sync</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                        "surface-dark": "#1c2327",
+                        "surface-highlight": "#283339",
+                        "text-secondary": "#9db0b9",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar hiding for cleaner mobile look */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display antialiased selection:bg-primary/30">
+<div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden max-w-md mx-auto bg-background-light dark:bg-background-dark border-x dark:border-[#283339] border-gray-200">
+<!-- Header -->
+<header class="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md pt-2">
+<div class="flex items-center justify-between px-4 py-3">
+<button class="text-primary text-base font-semibold leading-normal tracking-[0.015em] shrink-0 active:opacity-70 transition-opacity">
+                    Cancel
+                </button>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] text-center absolute left-1/2 -translate-x-1/2">
+                    New Todo
+                </h2>
+<div class="w-12"></div> <!-- Spacer to balance layout -->
+</div>
+<!-- Segmented Control -->
+<div class="px-4 pb-4 pt-2">
+<div class="flex h-10 w-full items-center justify-center rounded-lg bg-gray-200 dark:bg-surface-highlight p-1">
+<label class="flex cursor-pointer h-full flex-1 items-center justify-center overflow-hidden rounded-[0.4rem] px-2 transition-all has-[:checked]:bg-white dark:has-[:checked]:bg-surface-dark has-[:checked]:shadow-sm">
+<span class="truncate text-xs font-semibold leading-normal text-slate-600 dark:text-text-secondary has-[:checked]:text-slate-900 dark:has-[:checked]:text-white">Manual</span>
+<input checked="" class="hidden peer" name="input-method" type="radio" value="Manual"/>
+</label>
+<label class="flex cursor-pointer h-full flex-1 items-center justify-center overflow-hidden rounded-[0.4rem] px-2 transition-all has-[:checked]:bg-white dark:has-[:checked]:bg-surface-dark has-[:checked]:shadow-sm">
+<span class="truncate text-xs font-semibold leading-normal text-slate-600 dark:text-text-secondary has-[:checked]:text-slate-900 dark:has-[:checked]:text-white">From Receipt</span>
+<input class="hidden peer" name="input-method" type="radio" value="Receipt"/>
+</label>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col px-4 pb-24 space-y-6 pt-4">
+<!-- Task Name Input -->
+<div class="flex flex-col space-y-2">
+<label class="text-sm font-semibold text-slate-500 dark:text-text-secondary ml-1" for="task-name">Task Name</label>
+<div class="relative">
+<input autofocus="" class="form-input block w-full rounded-xl border-none bg-white dark:bg-surface-dark py-4 pl-4 pr-10 text-lg text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#58656c] focus:ring-2 focus:ring-primary shadow-sm" id="task-name" placeholder="What needs to be done?" type="text"/>
+<div class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-[#58656c]">
+<span class="material-symbols-outlined text-xl">edit_note</span>
+</div>
+</div>
+</div>
+<!-- Settings Group -->
+<div class="flex flex-col space-y-2">
+<p class="text-sm font-semibold text-slate-500 dark:text-text-secondary ml-1">Settings</p>
+<div class="flex flex-col overflow-hidden rounded-xl bg-white dark:bg-surface-dark shadow-sm">
+<!-- Due Date Item -->
+<div class="group relative flex items-center justify-between p-4 active:bg-gray-50 dark:active:bg-surface-highlight/50 transition-colors cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0 h-10 w-10">
+<span class="material-symbols-outlined">calendar_month</span>
+</div>
+<div class="flex flex-col">
+<p class="text-base font-medium text-slate-900 dark:text-white leading-tight">Due Date</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<p class="text-sm font-semibold text-primary">Today</p>
+<span class="material-symbols-outlined text-slate-400 dark:text-text-secondary text-lg">chevron_right</span>
+</div>
+<!-- Separator -->
+<div class="absolute bottom-0 left-[68px] right-0 h-[1px] bg-gray-100 dark:bg-[#283339]"></div>
+</div>
+<!-- Reminder Item -->
+<div class="group relative flex items-center justify-between p-4">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-orange-500/10 text-orange-500 shrink-0 h-10 w-10">
+<span class="material-symbols-outlined">notifications</span>
+</div>
+<div class="flex flex-col">
+<p class="text-base font-medium text-slate-900 dark:text-white leading-tight">Remind me</p>
+</div>
+</div>
+<div class="shrink-0">
+<label class="relative inline-flex cursor-pointer items-center">
+<input class="peer sr-only" type="checkbox" value=""/>
+<div class="peer h-7 w-12 rounded-full bg-gray-200 dark:bg-surface-highlight after:absolute after:left-[2px] after:top-[2px] after:h-6 after:w-6 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600"></div>
+</label>
+</div>
+<!-- Separator -->
+<div class="absolute bottom-0 left-[68px] right-0 h-[1px] bg-gray-100 dark:bg-[#283339]"></div>
+</div>
+<!-- Priority Item -->
+<div class="group relative flex items-center justify-between p-4 active:bg-gray-50 dark:active:bg-surface-highlight/50 transition-colors cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0 h-10 w-10">
+<span class="material-symbols-outlined">flag</span>
+</div>
+<div class="flex flex-col">
+<p class="text-base font-medium text-slate-900 dark:text-white leading-tight">Priority</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<p class="text-sm font-medium text-slate-500 dark:text-text-secondary">None</p>
+<span class="material-symbols-outlined text-slate-400 dark:text-text-secondary text-lg">chevron_right</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Suggestion / Quick Add from Receipt Teaser -->
+<div class="flex flex-col space-y-3 pt-2">
+<div class="flex items-center justify-between px-1">
+<p class="text-sm font-semibold text-slate-500 dark:text-text-secondary">Recent Receipt Items</p>
+<button class="text-xs font-bold text-primary">View All</button>
+</div>
+<div class="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+<!-- Card 1 -->
+<div class="shrink-0 w-40 p-3 rounded-xl bg-white dark:bg-surface-dark border border-gray-100 dark:border-[#283339] shadow-sm flex flex-col gap-2 group cursor-pointer active:scale-95 transition-transform">
+<div class="h-8 w-8 rounded-full bg-blue-500/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-sm">receipt_long</span>
+</div>
+<div>
+<p class="text-xs font-medium text-slate-500 dark:text-text-secondary truncate">Target</p>
+<p class="text-sm font-bold text-slate-900 dark:text-white truncate">Blender</p>
+</div>
+<div class="mt-auto pt-2 flex justify-between items-center border-t border-gray-100 dark:border-[#283339]">
+<span class="text-xs font-bold text-slate-900 dark:text-white">$45.99</span>
+<span class="material-symbols-outlined text-primary text-lg opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="shrink-0 w-40 p-3 rounded-xl bg-white dark:bg-surface-dark border border-gray-100 dark:border-[#283339] shadow-sm flex flex-col gap-2 group cursor-pointer active:scale-95 transition-transform">
+<div class="h-8 w-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-500">
+<span class="material-symbols-outlined text-sm">coffee</span>
+</div>
+<div>
+<p class="text-xs font-medium text-slate-500 dark:text-text-secondary truncate">Starbucks</p>
+<p class="text-sm font-bold text-slate-900 dark:text-white truncate">Latte</p>
+</div>
+<div class="mt-auto pt-2 flex justify-between items-center border-t border-gray-100 dark:border-[#283339]">
+<span class="text-xs font-bold text-slate-900 dark:text-white">$5.25</span>
+<span class="material-symbols-outlined text-primary text-lg opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Fixed Footer -->
+<div class="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background-light via-background-light to-transparent dark:from-background-dark dark:via-background-dark dark:to-transparent z-10 max-w-md mx-auto">
+<button class="w-full flex items-center justify-center gap-2 rounded-xl bg-primary h-12 text-white font-bold text-base shadow-lg shadow-primary/30 active:scale-[0.98] transition-all hover:bg-primary/90">
+<span class="material-symbols-outlined">check</span>
+                Create Task
+            </button>
+</div>
+</div>
+</body></html>

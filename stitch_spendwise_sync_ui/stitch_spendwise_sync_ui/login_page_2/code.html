@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SpendWise Sync Login</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                        "surface-dark": "#1a262d", // Slightly lighter than background-dark for cards/inputs
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-display antialiased">
+<div class="relative flex h-full min-h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-x-hidden">
+<div class="flex items-center justify-between px-4 py-4 pt-12 md:pt-6">
+<button class="flex items-center justify-center w-10 h-10 rounded-full text-slate-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="text-sm font-medium text-slate-500 dark:text-slate-400">Help</div>
+</div>
+<div class="flex flex-1 flex-col justify-center px-6 pb-10 max-w-md mx-auto w-full">
+<div class="flex flex-col items-center text-center mb-10">
+<div class="w-16 h-16 bg-gradient-to-tr from-primary to-blue-400 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-white text-3xl">account_balance_wallet</span>
+</div>
+<h1 class="text-slate-900 dark:text-white tracking-tight text-[32px] font-bold leading-tight mb-2">Sync your spending.</h1>
+<p class="text-slate-500 dark:text-slate-400 text-base font-normal leading-normal">Log in to SpendWise Sync to continue.</p>
+</div>
+<form class="flex flex-col gap-5" onsubmit="event.preventDefault();">
+<div class="flex flex-col gap-2">
+<label class="text-slate-900 dark:text-white text-sm font-medium leading-normal">Email Address</label>
+<div class="relative">
+<input class="form-input flex w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent h-14 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 text-base transition-all" placeholder="you@example.com" type="email" value=""/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-slate-900 dark:text-white text-sm font-medium leading-normal flex justify-between">
+                    Password
+                </label>
+<div class="relative">
+<input class="form-input flex w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent h-14 placeholder:text-slate-400 dark:placeholder:text-slate-500 pl-4 pr-12 text-base transition-all" placeholder="••••••••" type="password" value=""/>
+<button class="absolute right-0 top-0 h-14 w-14 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">visibility_off</span>
+</button>
+</div>
+</div>
+<div class="flex justify-end -mt-1">
+<a class="text-primary text-sm font-semibold hover:text-blue-400 transition-colors" href="#">Forgot Password?</a>
+</div>
+<button class="mt-2 w-full h-14 bg-primary hover:bg-blue-500 active:bg-blue-600 text-white font-bold text-base rounded-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2">
+<span>Sign In</span>
+</button>
+<div class="relative flex py-4 items-center">
+<div class="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+<span class="flex-shrink-0 mx-4 text-slate-400 dark:text-slate-500 text-xs font-medium uppercase tracking-wider">Or continue with</span>
+<div class="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+</div>
+<div class="w-full">
+<button class="w-full flex items-center justify-center gap-3 h-12 rounded-lg bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<img alt="Google" class="w-5 h-5" data-alt="Google Logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBwlFrmvRK6RTPAfCsgukFrcWdNDr_r6dpDkoYBe_sBu3hN3p-kcvWYjrO359NXMqLkS52Loj9wOOnJ17NLyGULdIJNLgd1eGe7NfLgdVkq8-nm2whcot6_ch-G5t7bDlqilrnAoLm-R8_kmqnYeQwQisGEi6VhQpSC3YcxM9-dAFQuzJ5QXlE6VxTEhr0AqgQMC12ZtZAcUIDR_j40clxYHuusiU7WfMybpsKsJa5fk1K8C3PZcoxIqUMIKVMx9C1xOzccJFplkJvP"/>
+<span class="text-slate-700 dark:text-white font-medium text-sm">Google</span>
+</button>
+</div>
+</form>
+<div class="mt-auto pt-8 text-center">
+<p class="text-slate-500 dark:text-slate-400 text-sm">
+                Don't have an account? 
+                <a class="text-primary font-bold hover:text-blue-400 transition-colors" href="#">Sign up</a>
+</p>
+</div>
+</div>
+</div>
+<div class="hidden fixed inset-0 z-50 items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" id="success-modal">
+<div class="w-full max-w-sm bg-background-light dark:bg-surface-dark rounded-xl shadow-2xl p-8 flex flex-col items-center text-center transform scale-100">
+<div class="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-5xl">check_circle</span>
+</div>
+<h3 class="text-slate-900 dark:text-white text-xl font-bold mb-2">Login Successful</h3>
+<p class="text-slate-500 dark:text-slate-400 text-base mb-6">Syncing your wallet...</p>
+<div class="flex items-center gap-2 text-primary text-sm font-medium">
+<svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+<path class="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"></path>
+</svg>
+            Redirecting
+        </div>
+</div>
+</div>
+</body></html>

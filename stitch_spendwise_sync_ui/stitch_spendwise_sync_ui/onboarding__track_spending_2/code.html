@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SpendWise Sync - Onboarding</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white antialiased selection:bg-primary/30 selection:text-primary">
+<div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden justify-between">
+<!-- TopAppBar -->
+<div class="flex items-center p-6 pt-8 md:pt-6 justify-end z-10">
+<button class="group flex items-center justify-center rounded-full px-4 py-2 text-sm font-bold text-slate-500 dark:text-[#9db0b9] hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+                Skip
+            </button>
+</div>
+<!-- Main Content Area -->
+<div class="flex flex-col items-center justify-center flex-grow w-full px-6 md:px-8 max-w-md mx-auto">
+<!-- Hero Image (Modified from ImageGrid) -->
+<div class="w-full aspect-[4/3] relative mb-8 group">
+<div class="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent rounded-2xl blur-xl transform scale-95 opacity-70 group-hover:opacity-100 transition-opacity duration-700"></div>
+<div class="w-full h-full bg-center bg-no-repeat bg-cover rounded-2xl relative shadow-2xl shadow-black/20 overflow-hidden ring-1 ring-white/10" data-alt="3D abstract visualization of coins and graphs on a smartphone screen representing finance tracking" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCBqbO8_HhlKAhYi6iWYvBn9UXyobVZSXowNmgWY7ey3oSklPoglr5ZfR-x09_81v9FShsx9z3LprL1EyG4DLVL-RpLrV5FQpgwlXKoGUs3KtM9gwj2yUxQcBJqPiX2we8TW3d51dOZGPISnuQ6O--BgyYbbcX63d3lO3K0J_er53bReVHjhLDT8fNhw6ivReOXe5KwZmrAwlWKgQavf-ZqJgnoYUrhPnkSBNIQwZIH5ZrW5vUFF1T7H1jmWQ7rBn672Ck4XoYEUFSF");'>
+<!-- Overlay Gradient for better integration -->
+<div class="absolute inset-0 bg-gradient-to-t from-background-light/20 via-transparent to-transparent dark:from-background-dark/40"></div>
+</div>
+</div>
+<!-- HeadlineText -->
+<h2 class="text-slate-900 dark:text-white text-[32px] font-extrabold leading-tight text-center mb-4 tracking-tight">
+                Effortless Expense Tracking
+            </h2>
+<!-- BodyText -->
+<p class="text-slate-600 dark:text-slate-400 text-base font-medium leading-relaxed text-center px-2">
+                Say goodbye to manual spreadsheets. Sync your accounts and let SpendWise organize your financial life automatically.
+            </p>
+</div>
+<!-- Footer / Navigation Area -->
+<div class="w-full px-6 pb-10 pt-8 max-w-md mx-auto flex flex-col gap-8">
+<!-- PageIndicators -->
+<div class="flex w-full flex-row items-center justify-center gap-2">
+<!-- Active Dot (Elongated) -->
+<div class="h-2 w-8 rounded-full bg-primary transition-all duration-300"></div>
+<!-- Inactive Dots -->
+<div class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-700 transition-all duration-300"></div>
+<div class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-700 transition-all duration-300"></div>
+<div class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-700 transition-all duration-300"></div>
+</div>
+<!-- Primary CTA Button -->
+<button class="w-full bg-primary hover:bg-blue-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-primary/25 transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 group">
+<span>Get Started</span>
+<span class="material-symbols-outlined text-[20px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+<!-- Safe Area Spacer for iOS Home Indicator -->
+<div class="h-2 w-full"></div>
+</div>
+</div>
+</body></html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Budget Setup &amp; Deductions</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#26b4ff",
+                        "background-dark": "#0a0a0a",
+                        "card-dark": "#1a1a1a",
+                        "border-dark": "#2a2a2a"
+                    },
+                    fontFamily: {
+                        "display": ["Manrope"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">body {
+    min-height: 100dvh;
+    background-color: #0a0a0a
+    }
+.no-scrollbar::-webkit-scrollbar {
+    display: none
+    }
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none
+    }
+input[type="checkbox"]:checked {
+    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuA2h3bacEIQXnyFls5VHmxNIYoy29StsMner4_Wpl0ygeCtI5O5B3BqhUelRMXO6-5YEyNrkVdEiHxxyWxRdYXCp0JSKk3G3XReF-q0hm-xqlSRvLB0HYxK8XWLXDzvA4YqCojNIfgOQbzPlU-RMIcoAiJ0IzFFtoAjXd19G1H2LCB5U_RM2EUG0tLcq7S9xtMal3JwOmNwArp7FqqwEIsKOOg56_331LhwfOO0yPezbEhai1pVsyfSiEXZZVO_kqfkxbZ5GAr6y8h6);
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat
+    }</style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark font-display text-white">
+<div class="relative flex h-auto min-h-screen w-full max-w-[430px] mx-auto flex-col bg-background-dark overflow-x-hidden shadow-2xl">
+<div class="flex items-center bg-background-dark p-4 pb-2 justify-between sticky top-0 z-30 border-b border-border-dark">
+<div class="text-white flex size-12 shrink-0 items-center">
+<span class="material-symbols-outlined cursor-pointer">arrow_back</span>
+</div>
+<h2 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Budget Setup</h2>
+<div class="flex w-12 items-center justify-end">
+</div>
+</div>
+<div class="p-4">
+<div class="flex flex-col items-stretch justify-start rounded-xl bg-card-dark border border-border-dark p-6">
+<div class="flex w-full min-w-72 grow flex-col items-stretch justify-center gap-1">
+<p class="text-gray-400 text-xs font-semibold uppercase tracking-widest">Total Available Money</p>
+<p class="text-white text-3xl font-bold leading-tight tracking-[-0.015em] mt-1">$4,250.00</p>
+<div class="flex items-center gap-2 mt-3">
+<span class="material-symbols-outlined text-green-400 text-sm">trending_up</span>
+<p class="text-green-400 text-sm font-medium">+2.5% from last month</p>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-3 px-4 py-2">
+<button class="relative flex flex-1 gap-2 rounded-xl border border-border-dark bg-card-dark p-3 flex-col text-left active:scale-95 transition-transform">
+<div class="absolute top-2 right-2 flex items-center justify-center size-5 rounded-full bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-xs font-bold text-primary">add</span>
+</div>
+<div class="text-primary">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<h2 class="text-white text-sm font-bold leading-tight">$2,800</h2>
+<p class="text-gray-400 text-[10px] font-medium uppercase tracking-wider">Pay</p>
+</div>
+</button>
+<button class="relative flex flex-1 gap-2 rounded-xl border border-border-dark bg-card-dark p-3 flex-col text-left active:scale-95 transition-transform">
+<div class="absolute top-2 right-2 flex items-center justify-center size-5 rounded-full bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-xs font-bold text-primary">add</span>
+</div>
+<div class="text-primary">
+<span class="material-symbols-outlined">account_balance</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<h2 class="text-white text-sm font-bold leading-tight">$1,350</h2>
+<p class="text-gray-400 text-[10px] font-medium uppercase tracking-wider">Bank</p>
+</div>
+</button>
+<button class="relative flex flex-1 gap-2 rounded-xl border border-border-dark bg-card-dark p-3 flex-col text-left active:scale-95 transition-transform">
+<div class="absolute top-2 right-2 flex items-center justify-center size-5 rounded-full bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-xs font-bold text-primary">add</span>
+</div>
+<div class="text-primary">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<h2 class="text-white text-sm font-bold leading-tight">$100</h2>
+<p class="text-gray-400 text-[10px] font-medium uppercase tracking-wider">Cash</p>
+</div>
+</button>
+</div>
+<div class="px-4 py-6">
+<h2 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] mb-4">Monthly Deductions</h2>
+<div class="relative group mb-4">
+<button class="w-full bg-primary/10 border-2 border-dashed border-primary/30 text-primary py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/20 active:scale-[0.98] transition-all focus:outline-none">
+<span class="material-symbols-outlined font-bold">add_circle</span>
+                    Add Deduction
+                </button>
+<div class="absolute left-0 right-0 top-full mt-2 z-40 bg-card-dark border border-border-dark rounded-xl shadow-2xl overflow-hidden hidden group-focus-within:block">
+<div class="p-2 space-y-1">
+<div class="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-widest">Bills</div>
+<button class="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-primary/10 rounded-lg flex justify-between items-center">
+                            Internet <span class="text-[10px] opacity-40">Add</span>
+</button>
+<button class="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-primary/10 rounded-lg flex justify-between items-center">
+                            Electricity <span class="text-[10px] opacity-40">Add</span>
+</button>
+<div class="h-px bg-border-dark my-1 mx-2"></div>
+<div class="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-widest">Church</div>
+<button class="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-primary/10 rounded-lg flex justify-between items-center">
+                            Tithe <span class="text-[10px] opacity-40">Add</span>
+</button>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between p-4 bg-card-dark border border-border-dark rounded-xl">
+<div class="flex items-center gap-4">
+<div class="flex items-center">
+<input class="appearance-none size-6 rounded-md border-2 border-primary/30 bg-transparent checked:bg-primary checked:border-primary focus:ring-0 focus:ring-offset-0 transition-all cursor-pointer" id="deduct-rent" type="checkbox"/>
+</div>
+<label class="text-sm font-bold text-gray-100 cursor-pointer" for="deduct-rent">Rent</label>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-sm font-bold text-white">$1,200.00</span>
+<span class="material-symbols-outlined text-gray-600 text-lg hover:text-red-400 cursor-pointer">more_vert</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-4 bg-card-dark border border-border-dark rounded-xl">
+<div class="flex items-center gap-4">
+<div class="flex items-center">
+<input checked="" class="appearance-none size-6 rounded-md border-2 border-primary/30 bg-transparent checked:bg-primary checked:border-primary focus:ring-0 focus:ring-offset-0 transition-all cursor-pointer" id="deduct-tithe" type="checkbox"/>
+</div>
+<label class="text-sm font-bold text-gray-100 cursor-pointer" for="deduct-tithe">Tithe</label>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-sm font-bold text-white">$425.00</span>
+<span class="material-symbols-outlined text-gray-600 text-lg hover:text-red-400 cursor-pointer">more_vert</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-4 bg-card-dark border border-border-dark rounded-xl">
+<div class="flex items-center gap-4">
+<div class="flex items-center">
+<input class="appearance-none size-6 rounded-md border-2 border-primary/30 bg-transparent checked:bg-primary checked:border-primary focus:ring-0 focus:ring-offset-0 transition-all cursor-pointer" id="deduct-internet" type="checkbox"/>
+</div>
+<label class="text-sm font-bold text-gray-100 cursor-pointer" for="deduct-internet">Internet</label>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-sm font-bold text-white">$65.00</span>
+<span class="material-symbols-outlined text-gray-600 text-lg hover:text-red-400 cursor-pointer">more_vert</span>
+</div>
+</div>
+</div>
+</div>
+<div>
+<div class="flex items-center justify-between px-4 pb-1 pt-2">
+<h2 class="text-white text-lg font-bold leading-tight tracking-[-0.015em]">Daily Limit</h2>
+<span class="text-green-400 text-xs font-bold px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] fill-1">check_circle</span> On Track
+                </span>
+</div>
+<div class="flex flex-col gap-3 p-4">
+<div class="flex gap-6 justify-between">
+<p class="text-gray-300 text-sm font-medium leading-normal">Spent vs Limit</p>
+<p class="text-white text-sm font-bold leading-normal">$32.50 / $50.00</p>
+</div>
+<div class="rounded-full bg-border-dark h-2.5 overflow-hidden">
+<div class="h-full rounded-full bg-primary" style="width: 65%;"></div>
+</div>
+<div class="flex justify-between items-center">
+<p class="text-gray-400 text-xs font-normal leading-normal">$17.50 Remaining</p>
+<button class="text-primary text-xs font-bold flex items-center gap-1">
+                        Edit Limit <span class="material-symbols-outlined text-sm">edit</span>
+</button>
+</div>
+</div>
+</div>
+<div class="pb-8">
+<div class="flex items-center justify-between px-4 pb-1 pt-4">
+<h2 class="text-white text-lg font-bold leading-tight tracking-[-0.015em]">Weekly Limit</h2>
+<span class="text-amber-400 text-xs font-bold px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] fill-1">warning</span> Near Limit
+                </span>
+</div>
+<div class="flex flex-col gap-3 p-4">
+<div class="flex gap-6 justify-between">
+<p class="text-gray-300 text-sm font-medium leading-normal">Spent vs Limit</p>
+<p class="text-white text-sm font-bold leading-normal">$310.00 / $350.00</p>
+</div>
+<div class="rounded-full bg-border-dark h-2.5 overflow-hidden">
+<div class="h-full rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]" style="width: 88.5%;"></div>
+</div>
+<div class="flex justify-between items-center">
+<p class="text-gray-400 text-xs font-normal leading-normal">$40.00 Remaining</p>
+<button class="text-primary text-xs font-bold flex items-center gap-1">
+                        Edit Limit <span class="material-symbols-outlined text-sm">edit</span>
+</button>
+</div>
+</div>
+</div>
+<div class="px-4 pb-12 mt-auto">
+<button class="w-full bg-primary text-black py-4 rounded-xl font-bold text-base shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-all hover:brightness-110">
+                Save Budget Configuration
+            </button>
+</div>
+</div>
+
+</body></html>

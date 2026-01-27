@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Receipt Detail - SpendWise Sync</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .receipt-cut {
+            mask-image: linear-gradient(to bottom, black calc(100% - 10px), transparent 100%),
+                        radial-gradient(circle at 10px 100%, black 10px, transparent 10px);
+            mask-size: 100% 100%, 20px 20px;
+            mask-repeat: no-repeat, repeat-x;
+            mask-position: 0 0, 0 100%;
+        }
+        /* Custom jagged bottom for the receipt look */
+        .jagged-bottom {
+            background-image: 
+                linear-gradient(135deg, #1e2a31 25%, transparent 25%),
+                linear-gradient(225deg, #1e2a31 25%, transparent 25%);
+            background-position: 0 100%;
+            background-size: 10px 10px;
+            background-repeat: repeat-x;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-white min-h-screen">
+<!-- Top Navigation Bar -->
+<div class="fixed top-0 left-0 right-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md">
+<div class="flex items-center p-4 justify-between max-w-md mx-auto">
+<div class="flex size-10 shrink-0 items-center justify-center cursor-pointer hover:bg-white/10 rounded-full transition-colors">
+<span class="material-symbols-outlined text-white">arrow_back_ios_new</span>
+</div>
+<h2 class="text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center">Receipt Detail</h2>
+<div class="flex w-10 items-center justify-end">
+<button class="flex cursor-pointer items-center justify-center rounded-full size-10 hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-white">share</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Main Content -->
+<main class="pt-20 pb-32 px-4 max-w-md mx-auto">
+<!-- Receipt Card Container -->
+<div class="relative bg-[#1e2a31] rounded-t-xl overflow-hidden shadow-2xl">
+<!-- Store Profile Header -->
+<div class="flex p-8 flex-col items-center">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-2xl mb-4 border-2 border-primary/20 p-1" data-alt="Modern minimalist logo for Whole Foods Market" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBpE4Cu-NjqjOfzJqXg6hQXBQnDCGdYeWxENPPB7DMVccjJDPrf6FGr59qusuvz5cdt1jKKRL6Y4IPUhs29CjAC84nB2TCvwhp5NTktsT2IxsIvDvyfb_TU-uwQghauP924avj_hFnfXAOB7gusLephSV0hwh_dzIxak9-Vlrxo6msoDgo_qm4axjcKOPI4HzbKFjO4XKswmRjV45MXJUidpZlFEJ-RsrP8P6K1rLxPKImxOcJ_OXgWX7BG-a7S3Sti0O0oE386Bgz4");'>
+</div>
+<div class="flex flex-col items-center justify-center">
+<p class="text-white text-2xl font-extrabold leading-tight tracking-tight text-center">Whole Foods Market</p>
+<div class="flex items-center gap-2 mt-1">
+<span class="material-symbols-outlined text-primary text-sm">calendar_today</span>
+<p class="text-[#9db0b9] text-sm font-medium">Oct 24, 2023, 02:45 PM</p>
+</div>
+<p class="text-[#9db0b9]/60 text-xs mt-2 uppercase tracking-widest font-bold">Ref: #SW-98231</p>
+</div>
+</div>
+<!-- Items Section -->
+<div class="px-6 pb-4">
+<div class="border-t border-dashed border-white/10 pt-6">
+<h3 class="text-primary text-xs font-black uppercase tracking-widest mb-4">Items Purchased</h3>
+<div class="space-y-1">
+<!-- List Item 1 -->
+<div class="flex items-center gap-4 py-3 justify-between">
+<div class="flex flex-col justify-center">
+<p class="text-white text-base font-semibold leading-normal">Organic Fuji Apples</p>
+<p class="text-[#9db0b9] text-xs font-medium">2 units x $2.00</p>
+</div>
+<div class="shrink-0"><p class="text-white text-base font-bold">$4.00</p></div>
+</div>
+<!-- List Item 2 -->
+<div class="flex items-center gap-4 py-3 justify-between">
+<div class="flex flex-col justify-center">
+<p class="text-white text-base font-semibold leading-normal">Unsweetened Almond Milk</p>
+<p class="text-[#9db0b9] text-xs font-medium">1 unit x $4.50</p>
+</div>
+<div class="shrink-0"><p class="text-white text-base font-bold">$4.50</p></div>
+</div>
+<!-- List Item 3 -->
+<div class="flex items-center gap-4 py-3 justify-between">
+<div class="flex flex-col justify-center">
+<p class="text-white text-base font-semibold leading-normal">Avocado Hass (Large)</p>
+<p class="text-[#9db0b9] text-xs font-medium">3 units x $1.50</p>
+</div>
+<div class="shrink-0"><p class="text-white text-base font-bold">$4.50</p></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Payment & Summary -->
+<div class="px-6 pb-12 pt-4">
+<div class="bg-background-dark/40 rounded-xl p-5 space-y-3">
+<div class="flex justify-between items-center text-sm">
+<span class="text-[#9db0b9] font-medium">Subtotal</span>
+<span class="text-white font-semibold">$13.00</span>
+</div>
+<div class="flex justify-between items-center text-sm">
+<span class="text-[#9db0b9] font-medium">Tax (8.5%)</span>
+<span class="text-white font-semibold">$1.10</span>
+</div>
+<div class="border-t border-white/5 pt-3 flex justify-between items-center">
+<span class="text-white font-bold text-lg">Total Amount</span>
+<span class="text-primary font-black text-2xl">$14.10</span>
+</div>
+</div>
+<div class="mt-6 flex items-center justify-between px-2">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-lg bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">credit_card</span>
+</div>
+<div>
+<p class="text-white text-sm font-bold">Visa Card</p>
+<p class="text-[#9db0b9] text-xs">•••• 4242</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-[#9db0b9] size-6">verified_user</span>
+</div>
+</div>
+<!-- Jagged Edge Detail -->
+<div class="h-3 w-full jagged-bottom mb-[-1px]"></div>
+</div>
+<!-- Action Section -->
+<div class="mt-8 flex flex-col gap-4">
+<div class="grid grid-cols-2 gap-3">
+<button class="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white rounded-xl py-4 font-bold transition-all border border-white/10 active:scale-95">
+<span class="material-symbols-outlined text-primary">image</span>
+                    Save Image
+                </button>
+<button class="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white rounded-xl py-4 font-bold transition-all border border-white/10 active:scale-95">
+<span class="material-symbols-outlined text-primary">picture_as_pdf</span>
+                    Save PDF
+                </button>
+</div>
+<button class="flex items-center justify-center gap-3 bg-primary hover:bg-primary/90 text-white rounded-xl py-5 font-black text-lg shadow-lg shadow-primary/20 transition-all active:scale-95">
+<span class="material-symbols-outlined">print</span>
+                Print Receipt
+            </button>
+</div>
+<!-- Merchant Location Placeholder -->
+<div class="mt-10 rounded-2xl overflow-hidden h-40 relative group">
+<div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors z-10 flex items-center justify-center">
+<div class="bg-background-dark/80 backdrop-blur px-4 py-2 rounded-full border border-white/10 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">location_on</span>
+<span class="text-xs font-bold uppercase tracking-wider">San Francisco, CA</span>
+</div>
+</div>
+<img class="w-full h-full object-cover grayscale opacity-60" data-alt="Map showing the store location in San Francisco" data-location="San Francisco" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDW_SdR4R06E3qbvNdpDMo07ckqiSHu8QnnYPl5vf-hjea7mrRxDzViw-BKxnyse7xPxg3QWLDOzwJltnUrdwbl5OOR93qCWYFWUGJNYt4WlSNhKERG1qHeafm0Ntsp2Vn5V8zcCi-QZv8Evl5tm2Mhwnjq2blCt1YahPKudqUf933som7cdejBMc1agZkc-OIHVzm4M6oijwEIUJ0PBJVVk-3EYjFAO30x9uM3LKESvVNGQxgL9eWWR3MICeRSK7Gxde7ApWtFB5dl"/>
+</div>
+</main>
+<!-- Bottom Tab Bar Placeholder (Mobile App Feel) -->
+<nav class="fixed bottom-0 left-0 right-0 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-xl border-t border-white/5 pb-6 pt-3 px-8 z-50">
+<div class="flex justify-between items-center max-w-md mx-auto">
+<div class="flex flex-col items-center gap-1 opacity-40">
+<span class="material-symbols-outlined">home</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined">receipt_long</span>
+<div class="size-1 bg-primary rounded-full"></div>
+</div>
+<div class="flex flex-col items-center gap-1 opacity-40">
+<span class="material-symbols-outlined">bar_chart</span>
+</div>
+<div class="flex flex-col items-center gap-1 opacity-40">
+<span class="material-symbols-outlined">person</span>
+</div>
+</div>
+</nav>
+</body></html>

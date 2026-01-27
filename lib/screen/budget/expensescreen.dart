@@ -1,0 +1,1442 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+
+class ExpenseScreen extends StatefulWidget {
+  const ExpenseScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ExpenseScreen> createState() => _ExpenseScreenState();
+}
+
+class _ExpenseScreenState extends State<ExpenseScreen> {
+  // App Colors - DARK MODE
+  static const Color backgroundDark = Color(0xFF0f1115);
+  static const Color cardDark = Color(0xFF1a1d24);
+  static const Color cardSurface = Color(0xFF23262e);
+  static const Color borderDark = Color(0xFF2d3542);
+  static const Color textGreyDark = Color(0xFF94a3b8);
+  static const Color textLightDark = Color(0xFFd1d5db);
+
+  // App Colors - LIGHT MODE
+  static const Color backgroundLight = Color(0xFFf6f7f8);
+  static const Color cardLight = Color(0xFFffffff);
+  static const Color cardSurfaceLight = Color(0xFFf1f5f9);
+  static const Color borderLight = Color(0xFFe2e8f0);
+  static const Color textGreyLight = Color(0xFF64748b);
+  static const Color textLightLight = Color(0xFF0f172a);
+
+  // Shared colors
+  static const Color primary = Color(0xFF00d4ff);
+  static const Color greenSuccess = Color(0xFF10b981);
+  static const Color yellowWarning = Color(0xFFf59e0b);
+  static const Color redError = Color(0xFFef4444);
+
+  // Budget data
+  double _payAmount = 0;
+  double _bankAmount = 0;
+  double _cashAmount = 0;
+
+  // Monthly deductions list
+  List<Map<String, dynamic>> _monthlyDeductions = [];
+
+  // Daily limit
+  double _dailyLimit = 0;
+  double _dailySpent = 0;
+
+  // Weekly limit
+  double _weeklyLimit = 0;
+  double _weeklySpent = 0;
+
+  // Monthly limit
+  double _monthlyLimit = 0;
+  double _monthlySpent = 0;
+
+  bool _isLoading = true;
+  String _currencySymbol = '\$';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadThemePreference();
+    _loadBudgetData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _updateSystemUI();
+  }
+
+  void _updateSystemUI() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      ),
+    );
+  }
+
+  Future<void> _loadThemePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isDarkMode = prefs.getBool('isDarkMode') ?? true;
+    // Theme is controlled by main.dart
+  }
+
+  Future<void> _loadBudgetData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Load budget data from Firestore using consistent document IDs
+      final userId = user.uid;
+
+      // Daily budget
+      final dailyDocId = '${userId}_daily';
+      final dailyDoc = await FirebaseFirestore.instance
+          .collection('budgets')
+          .doc(dailyDocId)
+          .get();
+
+      // Weekly budget
+      final weeklyDocId = '${userId}_weekly';
+      final weeklyDoc = await FirebaseFirestore.instance
+          .collection('budgets')
+          .doc(weeklyDocId)
+          .get();
+
+      // Monthly budget
+      final monthlyDocId = '${userId}_monthly';
+      final monthlyDoc = await FirebaseFirestore.instance
+          .collection('budgets')
+          .doc(monthlyDocId)
+          .get();
+
+      setState(() {
+        if (dailyDoc.exists) {
+          final data = dailyDoc.data()!;
+          _dailyLimit = (data['limitAmount'] ?? _dailyLimit).toDouble();
+          _dailySpent = (data['amountSpent'] ?? _dailySpent).toDouble();
+        }
+
+        if (weeklyDoc.exists) {
+          final data = weeklyDoc.data()!;
+          _weeklyLimit = (data['limitAmount'] ?? _weeklyLimit).toDouble();
+          _weeklySpent = (data['amountSpent'] ?? _weeklySpent).toDouble();
+        }
+
+        if (monthlyDoc.exists) {
+          final data = monthlyDoc.data()!;
+          _monthlyLimit = (data['limitAmount'] ?? _monthlyLimit).toDouble();
+          _monthlySpent = (data['amountSpent'] ?? _monthlySpent).toDouble();
+
+          // Get available money from monthly budget
+          _payAmount = (data['payAmount'] ?? _payAmount).toDouble();
+          _bankAmount = (data['bankAmount'] ?? _bankAmount).toDouble();
+          _cashAmount = (data['cashAmount'] ?? _cashAmount).toDouble();
+          _currencySymbol = data['currency'] ?? '\$';
+
+          // Load monthly deductions
+          if (data['monthlyDeductions'] != null) {
+            _monthlyDeductions = List<Map<String, dynamic>>.from(
+              data['monthlyDeductions'].map(
+                (item) => Map<String, dynamic>.from(item),
+              ),
+            );
+          }
+        }
+
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showErrorSnackBar('Error loading budget data: $e');
+    }
+  }
+
+  String _formatCurrency(double amount, {int decimals = 2}) {
+    final formatter = NumberFormat('#,##0.${'0' * decimals}', 'en_US');
+    return formatter.format(amount);
+  }
+
+  double get _totalDeductions {
+    return _monthlyDeductions.fold(
+      0.0,
+      (sum, item) => sum + (item['amount'] as num).toDouble(),
+    );
+  }
+
+  double get _totalAvailableMoney {
+    // Pay minus total deductions, then add bank and cash
+    return _bankAmount - _totalDeductions - _cashAmount;
+  }
+
+  Future<void> _saveBudgetConfiguration() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        _showErrorSnackBar('Please login to save budget configuration');
+        return;
+      }
+
+      final now = DateTime.now();
+      final dailyStart = DateTime(now.year, now.month, now.day);
+      final dailyEnd = dailyStart.add(const Duration(days: 1));
+
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      final weeklyStart = DateTime(
+        weekStart.year,
+        weekStart.month,
+        weekStart.day,
+      );
+      final weeklyEnd = weeklyStart.add(const Duration(days: 7));
+
+      final monthlyStart = DateTime(now.year, now.month, 1);
+      final monthlyEnd = DateTime(now.year, now.month + 1, 1);
+
+      // Save Daily Budget
+      await _saveBudget(
+        userId: user.uid,
+        type: 'daily',
+        limit: _dailyLimit,
+        spent: _dailySpent,
+        periodStart: dailyStart,
+        periodEnd: dailyEnd,
+      );
+
+      // Save Weekly Budget
+      await _saveBudget(
+        userId: user.uid,
+        type: 'weekly',
+        limit: _weeklyLimit,
+        spent: _weeklySpent,
+        periodStart: weeklyStart,
+        periodEnd: weeklyEnd,
+      );
+
+      // Save Monthly Budget
+      await _saveBudget(
+        userId: user.uid,
+        type: 'monthly',
+        limit: _monthlyLimit,
+        spent: _monthlySpent,
+        periodStart: monthlyStart,
+        periodEnd: monthlyEnd,
+      );
+
+      _showSuccessSnackBar('Configuration saved successfully!');
+    } catch (e) {
+      _showErrorSnackBar('Error saving configuration: $e');
+    }
+  }
+
+  Future<void> _saveBudget({
+    required String userId,
+    required String type,
+    required double limit,
+    required double spent,
+    required DateTime periodStart,
+    required DateTime periodEnd,
+  }) async {
+    // Use a consistent document ID based on userId and type to prevent duplicates
+    final docId = '${userId}_$type';
+    final docRef = FirebaseFirestore.instance.collection('budgets').doc(docId);
+
+    final totalAvailable = _totalAvailableMoney;
+    final remaining = totalAvailable - spent;
+    final alertThreshold = 0.8; // 80%
+
+    final budgetData = {
+      'budgetId': docId,
+      'userId': userId,
+      'type': type,
+      'limitAmount': limit,
+      'currency': _currencySymbol,
+      'totalAvailableAmount': totalAvailable,
+      'amountSpent': spent,
+      'remainingAmount': remaining,
+      'periodStartDate': Timestamp.fromDate(periodStart),
+      'periodEndDate': Timestamp.fromDate(periodEnd),
+      'alertThreshold': alertThreshold,
+      'payAmount': _payAmount,
+      'bankAmount': _bankAmount,
+      'cashAmount': _cashAmount,
+      'monthlyDeductions': _monthlyDeductions,
+      'totalDeductions': _totalDeductions,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    // Check if document exists
+    final docSnapshot = await docRef.get();
+
+    if (docSnapshot.exists) {
+      // Update existing document
+      await docRef.update(budgetData);
+    } else {
+      // Create new document with createdAt
+      budgetData['createdAt'] = FieldValue.serverTimestamp();
+      await docRef.set(budgetData);
+    }
+  }
+
+  void _showMoneyInputModal(String title, String type) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? backgroundDark : backgroundLight;
+    final cardColor = isDark ? cardDark : cardLight;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    final controller = TextEditingController(
+      text: type == 'pay'
+          ? _formatCurrency(_payAmount)
+          : type == 'bank'
+          ? _formatCurrency(_bankAmount)
+          : _formatCurrency(_cashAmount),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: borderColor),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: textLight,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: TextStyle(color: textLight, fontSize: 24),
+          autofocus: true,
+          decoration: InputDecoration(
+            prefixText: _currencySymbol,
+            prefixStyle: TextStyle(color: textGrey, fontSize: 24),
+            hintText: '0.00',
+            hintStyle: TextStyle(color: textGrey),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: borderColor),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: primary, width: 2),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: textGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = double.tryParse(controller.text) ?? 0;
+              setState(() {
+                if (type == 'pay') {
+                  _payAmount = value;
+                } else if (type == 'bank') {
+                  _bankAmount = value;
+                } else {
+                  _cashAmount = value;
+                }
+              });
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primary,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Save',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddDeductionModal() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? backgroundDark : backgroundLight;
+    final cardColor = isDark ? cardDark : cardLight;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    final nameController = TextEditingController();
+    final amountController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: borderColor),
+        ),
+        title: Text(
+          'Add Deduction',
+          style: TextStyle(
+            color: textLight,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: TextStyle(color: textLight, fontSize: 18),
+              decoration: InputDecoration(
+                labelText: 'Deduction Name',
+                labelStyle: TextStyle(color: textGrey),
+                hintText: 'e.g., Rent, Tithe, Internet',
+                hintStyle: TextStyle(color: textGrey, fontSize: 14),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: primary, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: amountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: TextStyle(color: textLight, fontSize: 18),
+              decoration: InputDecoration(
+                labelText: 'Amount',
+                labelStyle: TextStyle(color: textGrey),
+                prefixText: _currencySymbol,
+                prefixStyle: TextStyle(color: textGrey, fontSize: 18),
+                hintText: '0.00',
+                hintStyle: TextStyle(color: textGrey),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: primary, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: textGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final name = nameController.text.trim();
+              final amount = double.tryParse(amountController.text) ?? 0;
+
+              if (name.isNotEmpty && amount > 0) {
+                setState(() {
+                  _monthlyDeductions.add({
+                    'name': name,
+                    'amount': amount,
+                    'enabled': true,
+                  });
+                });
+                Navigator.pop(context);
+              } else {
+                _showErrorSnackBar('Please enter valid name and amount');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primary,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDeductionModal(int index) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? backgroundDark : backgroundLight;
+    final cardColor = isDark ? cardDark : cardLight;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    final deduction = _monthlyDeductions[index];
+    final nameController = TextEditingController(text: deduction['name']);
+    final amountController = TextEditingController(
+      text: _formatCurrency(deduction['amount'].toDouble()),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: borderColor),
+        ),
+        title: Text(
+          'Edit Deduction',
+          style: TextStyle(
+            color: textLight,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: TextStyle(color: textLight, fontSize: 18),
+              decoration: InputDecoration(
+                labelText: 'Deduction Name',
+                labelStyle: TextStyle(color: textGrey),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: primary, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: amountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: TextStyle(color: textLight, fontSize: 18),
+              decoration: InputDecoration(
+                labelText: 'Amount',
+                labelStyle: TextStyle(color: textGrey),
+                prefixText: _currencySymbol,
+                prefixStyle: TextStyle(color: textGrey, fontSize: 18),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: primary, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              // Delete deduction
+              setState(() {
+                _monthlyDeductions.removeAt(index);
+              });
+              Navigator.pop(context);
+            },
+            child: Text('Delete', style: TextStyle(color: redError)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: textGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final name = nameController.text.trim();
+              final amount = double.tryParse(amountController.text) ?? 0;
+
+              if (name.isNotEmpty && amount > 0) {
+                setState(() {
+                  _monthlyDeductions[index] = {
+                    'name': name,
+                    'amount': amount,
+                    'enabled': deduction['enabled'] ?? true,
+                  };
+                });
+                Navigator.pop(context);
+              } else {
+                _showErrorSnackBar('Please enter valid name and amount');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primary,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Save',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLimitEditModal(String type) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? backgroundDark : backgroundLight;
+    final cardColor = isDark ? cardDark : cardLight;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    double currentLimit = 0;
+    double currentSpent = 0;
+
+    if (type == 'daily') {
+      currentLimit = _dailyLimit;
+      currentSpent = _dailySpent;
+    } else if (type == 'weekly') {
+      currentLimit = _weeklyLimit;
+      currentSpent = _weeklySpent;
+    } else {
+      currentLimit = _monthlyLimit;
+      currentSpent = _monthlySpent;
+    }
+
+    final limitController = TextEditingController(
+      text: _formatCurrency(currentLimit),
+    );
+    final spentController = TextEditingController(
+      text: _formatCurrency(currentSpent),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: borderColor),
+        ),
+        title: Text(
+          'Edit ${type.substring(0, 1).toUpperCase()}${type.substring(1)} Limit',
+          style: TextStyle(
+            color: textLight,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: limitController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: TextStyle(color: textLight, fontSize: 20),
+              decoration: InputDecoration(
+                labelText: 'Limit Amount',
+                labelStyle: TextStyle(color: textGrey),
+                prefixText: _currencySymbol,
+                prefixStyle: TextStyle(color: textGrey, fontSize: 20),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: primary, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: spentController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: TextStyle(color: textLight, fontSize: 20),
+              decoration: InputDecoration(
+                labelText: 'Amount Spent',
+                labelStyle: TextStyle(color: textGrey),
+                prefixText: _currencySymbol,
+                prefixStyle: TextStyle(color: textGrey, fontSize: 20),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: primary, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: textGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final limit = double.tryParse(limitController.text) ?? 0;
+              final spent = double.tryParse(spentController.text) ?? 0;
+
+              setState(() {
+                if (type == 'daily') {
+                  _dailyLimit = limit;
+                  _dailySpent = spent;
+                } else if (type == 'weekly') {
+                  _weeklyLimit = limit;
+                  _weeklySpent = spent;
+                } else {
+                  _monthlyLimit = limit;
+                  _monthlySpent = spent;
+                }
+              });
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primary,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Save',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? backgroundDark : backgroundLight;
+    final cardColor = isDark ? cardDark : cardLight;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: textLight),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: greenSuccess,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? backgroundDark : backgroundLight;
+    final cardColor = isDark ? cardDark : cardLight;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.error, color: textLight),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: redError,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  String _getBudgetStatus(double spent, double limit) {
+    if (limit == 0) return 'not_set';
+    final percentage = (spent / limit) * 100;
+    if (percentage >= 100) return 'exceeded';
+    if (percentage >= 80) return 'near_limit';
+    return 'on_track';
+  }
+
+  Color _getProgressColor(String status) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+
+    switch (status) {
+      case 'exceeded':
+        return redError;
+      case 'near_limit':
+        return yellowWarning;
+      case 'on_track':
+        return primary;
+      default:
+        return textGrey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? backgroundDark : backgroundLight;
+    final cardColor = isDark ? cardDark : cardLight;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: backgroundColor,
+        body: Center(child: CircularProgressIndicator(color: primary)),
+      );
+    }
+
+    final dailyStatus = _getBudgetStatus(_dailySpent, _dailyLimit);
+    final weeklyStatus = _getBudgetStatus(_weeklySpent, _weeklyLimit);
+    final monthlyStatus = _getBudgetStatus(_monthlySpent, _monthlyLimit);
+
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: backgroundColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textLight),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Budget Setup',
+          style: TextStyle(
+            color: textLight,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.tune, color: textLight),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 20),
+
+            // Total Available Money Card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TOTAL AVAILABLE MONEY',
+                      style: TextStyle(
+                        color: textGrey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '$_currencySymbol${_formatCurrency(_totalAvailableMoney)}',
+                      style: TextStyle(
+                        color: textLight,
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: const [
+                        Icon(Icons.trending_up, color: greenSuccess, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          '+2.5% from last month',
+                          style: TextStyle(
+                            color: greenSuccess,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Money Sources Row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  _buildMoneySourceCard(
+                    icon: Icons.wallet,
+                    label: 'PAY',
+                    amount: _payAmount,
+                    color: const Color(0xFF3b82f6),
+                    onAdd: () =>
+                        _showMoneyInputModal('Enter Pay Amount', 'pay'),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildMoneySourceCard(
+                    icon: Icons.account_balance,
+                    label: 'BANK',
+                    amount: _bankAmount,
+                    color: const Color(0xFF3b82f6),
+                    onAdd: () =>
+                        _showMoneyInputModal('Enter Bank Balance', 'bank'),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildMoneySourceCard(
+                    icon: Icons.payments,
+                    label: 'CASH',
+                    amount: _cashAmount,
+                    color: const Color(0xFF3b82f6),
+                    onAdd: () =>
+                        _showMoneyInputModal('Enter Cash Amount', 'cash'),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // Monthly Deductions Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Monthly Deductions',
+                    style: TextStyle(
+                      color: textLight,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Add Deduction Button
+                  GestureDetector(
+                    onTap: _showAddDeductionModal,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: primary,
+                          width: 2,
+                          style: BorderStyle.solid,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.add_circle, color: primary, size: 24),
+                          SizedBox(width: 12),
+                          Text(
+                            'Add Deduction',
+                            style: TextStyle(
+                              color: primary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Deductions List
+                  if (_monthlyDeductions.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: cardSurfaceColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'No deductions added yet',
+                          style: TextStyle(color: textGrey, fontSize: 14),
+                        ),
+                      ),
+                    )
+                  else
+                    ..._monthlyDeductions.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final deduction = entry.value;
+                      final name = deduction['name'] as String;
+                      final amount = (deduction['amount'] as num).toDouble();
+                      final enabled = deduction['enabled'] as bool? ?? true;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: cardSurfaceColor,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Row(
+                            children: [
+                              // Checkbox
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _monthlyDeductions[index]['enabled'] =
+                                        !enabled;
+                                  });
+                                },
+                                child: Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: enabled
+                                        ? primary
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: enabled ? primary : borderDark,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: enabled
+                                      ? Icon(
+                                          Icons.check,
+                                          size: 16,
+                                          color: Colors.black,
+                                        )
+                                      : null,
+                                ),
+                              ),
+
+                              const SizedBox(width: 16),
+
+                              // Name
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: TextStyle(
+                                    color: enabled ? Colors.white : textGrey,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: enabled
+                                        ? null
+                                        : TextDecoration.lineThrough,
+                                  ),
+                                ),
+                              ),
+
+                              // Amount
+                              Text(
+                                '$_currencySymbol${_formatCurrency(amount)}',
+                                style: TextStyle(
+                                  color: enabled ? Colors.white : textGrey,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+
+                              const SizedBox(width: 12),
+
+                              // Menu button
+                              GestureDetector(
+                                onTap: () => _showEditDeductionModal(index),
+                                child: Icon(
+                                  Icons.more_vert,
+                                  color: textGrey,
+                                  size: 20,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // Daily Limit
+            _buildLimitSection(
+              title: 'Daily Limit',
+              status: dailyStatus,
+              spent: _dailySpent,
+              limit: _dailyLimit,
+              color: _getProgressColor(dailyStatus),
+              onEdit: () => _showLimitEditModal('daily'),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Weekly Limit
+            _buildLimitSection(
+              title: 'Weekly Limit',
+              status: weeklyStatus,
+              spent: _weeklySpent,
+              limit: _weeklyLimit,
+              color: _getProgressColor(weeklyStatus),
+              onEdit: () => _showLimitEditModal('weekly'),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Monthly Limit
+            _buildLimitSection(
+              title: 'Monthly Limit',
+              status: monthlyStatus,
+              spent: _monthlySpent,
+              limit: _monthlyLimit,
+              color: _getProgressColor(monthlyStatus),
+              onEdit: () => _showLimitEditModal('monthly'),
+            ),
+            const SizedBox(height: 40),
+
+            // Save Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton(
+                  onPressed: _saveBudgetConfiguration,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primary,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Save Budget Configuration',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoneySourceCard({
+    required IconData icon,
+    required String label,
+    required double amount,
+    required Color color,
+    required VoidCallback onAdd,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardSurfaceColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(icon, color: color, size: 32),
+                GestureDetector(
+                  onTap: onAdd,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: primary.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.add, color: primary, size: 16),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '$_currencySymbol${_formatCurrency(amount, decimals: 0)}',
+                style: TextStyle(
+                  color: textLight,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: textGrey,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLimitSection({
+    required String title,
+    required String status,
+    required double spent,
+    required double limit,
+    required Color color,
+    required VoidCallback onEdit,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    final remaining = limit - spent;
+    final progress = limit > 0 ? (spent / limit).clamp(0.0, 1.0) : 0.0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: textLight,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              _buildStatusBadge(status),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Spent vs Limit',
+                style: TextStyle(color: textGrey, fontSize: 14),
+              ),
+              Text(
+                '$_currencySymbol${_formatCurrency(spent)} / $_currencySymbol${_formatCurrency(limit)}',
+                style: TextStyle(
+                  color: textLight,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Progress Bar
+          Stack(
+            children: [
+              Container(
+                height: 8,
+                decoration: BoxDecoration(
+                  color: cardSurfaceColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: progress,
+                child: Container(
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                status == 'exceeded'
+                    ? '-$_currencySymbol${_formatCurrency(-remaining)} Over Budget'
+                    : '$_currencySymbol${_formatCurrency(remaining)} Remaining',
+                style: TextStyle(
+                  color: status == 'exceeded' ? redError : textGrey,
+                  fontSize: 14,
+                ),
+              ),
+              GestureDetector(
+                onTap: onEdit,
+                child: Row(
+                  children: const [
+                    Text(
+                      'Edit Limit',
+                      style: TextStyle(
+                        color: primary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.edit, color: primary, size: 16),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? backgroundDark : backgroundLight;
+    final cardColor = isDark ? cardDark : cardLight;
+    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    Color bgColor;
+    Color textColor;
+    String label;
+    IconData icon;
+
+    switch (status) {
+      case 'exceeded':
+        bgColor = redError.withOpacity(0.2);
+        textColor = redError;
+        label = 'Exceeded';
+        icon = Icons.error;
+        break;
+      case 'near_limit':
+        bgColor = yellowWarning.withOpacity(0.2);
+        textColor = yellowWarning;
+        label = 'Near Limit';
+        icon = Icons.warning;
+        break;
+      case 'on_track':
+        bgColor = greenSuccess.withOpacity(0.2);
+        textColor = greenSuccess;
+        label = 'On Track';
+        icon = Icons.check_circle;
+        break;
+      default:
+        bgColor = textGrey.withOpacity(0.2);
+        textColor = textGrey;
+        label = 'Not Set';
+        icon = Icons.info;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: textColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: textColor, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Todo Dashboard - SpendWise Sync</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#19252b", // Slightly lighter than background-dark
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased text-neutral-900 dark:text-white min-h-screen flex justify-center">
+<div class="w-full max-w-md bg-background-light dark:bg-background-dark min-h-screen relative flex flex-col shadow-2xl overflow-hidden">
+<div class="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-20">
+<div class="flex size-12 shrink-0 items-center">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ring-2 ring-primary/20" data-alt="User profile picture showing a smiling person" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCRcAmMPhdV522D2JG7XvgXoe_rvCGQ-Cu8VspH6URpCtm9ieoD7qJqoaVWgJtDZcUifBsgZcgEfrBWUXqUV5ziV95AlJ7mTFNaRIivBuyGm26S85o-LdtqrOaQ-MiqIMx3kwF07uX0jgUf-BcD9aGphw2WXS76KYgfwO4GSt6JIYdp7hpTq1O6HxDVixHegsdeZLeLQtedFax0tmDNSfSPu6Wiwz79-1tX7vJzq8dFe1MiW-KJmOFYkklHVj81WKtcOkODsWl8ntDE");'></div>
+</div>
+<h2 class="text-neutral-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Tasks</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 w-10 bg-transparent hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-900 dark:text-white gap-2 min-w-0 p-0">
+<span class="material-symbols-outlined text-[24px]">search</span>
+</button>
+</div>
+</div>
+<div class="flex flex-col px-4 pt-4 pb-2">
+<h2 class="text-neutral-900 dark:text-white tracking-tight text-[28px] font-bold leading-tight text-left">Good Morning, Alex</h2>
+<p class="text-neutral-500 dark:text-neutral-400 text-sm mt-1">You have 3 high-priority financial tasks today.</p>
+</div>
+<div class="flex flex-col gap-3 p-4">
+<div class="flex gap-6 justify-between items-center">
+<p class="text-neutral-900 dark:text-white text-base font-bold leading-normal">Daily Progress</p>
+<span class="text-primary text-sm font-bold">62%</span>
+</div>
+<div class="rounded-full bg-neutral-200 dark:bg-[#3b4b54] h-3 overflow-hidden">
+<div class="h-full rounded-full bg-primary relative" style="width: 62%;">
+<div class="absolute inset-0 bg-white/20"></div>
+</div>
+</div>
+<p class="text-neutral-500 dark:text-neutral-400 text-sm font-medium leading-normal">5/8 Tasks Completed</p>
+</div>
+<div class="flex px-4 py-2 sticky top-[70px] z-10 bg-background-light dark:bg-background-dark">
+<div class="flex h-12 flex-1 items-center justify-center rounded-xl bg-neutral-200 dark:bg-[#283339] p-1 relative">
+<div class="absolute left-1 w-[calc(50%-4px)] h-[calc(100%-8px)] bg-white dark:bg-background-dark rounded-lg shadow-sm transition-all duration-300 ease-out z-0"></div>
+<label class="flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-lg px-2 relative z-10 transition-colors">
+<span class="truncate font-bold text-neutral-900 dark:text-white">Active</span>
+<input checked="" class="invisible w-0 absolute" name="task-view" type="radio" value="Active"/>
+</label>
+<label class="flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-lg px-2 relative z-10 group transition-colors">
+<span class="truncate font-medium text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-200">Completed</span>
+<input class="invisible w-0 absolute" name="task-view" type="radio" value="Completed"/>
+</label>
+</div>
+</div>
+<div class="flex flex-col p-4 gap-3 pb-8">
+<p class="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1">High Priority</p>
+<div class="flex items-center gap-4 bg-white dark:bg-surface-dark rounded-xl px-4 min-h-[72px] py-3 justify-between shadow-sm border border-neutral-100 dark:border-neutral-800">
+<div class="flex items-center gap-4">
+<div class="flex size-6 items-center justify-center shrink-0">
+<input class="h-5 w-5 rounded-full border-neutral-300 dark:border-neutral-500 border-2 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-0 focus:ring-offset-0 focus:outline-none transition-all cursor-pointer" type="checkbox"/>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-neutral-900 dark:text-white text-base font-bold leading-normal line-clamp-1">Review Subscription Audit</p>
+<p class="text-neutral-500 dark:text-neutral-400 text-sm font-medium leading-normal line-clamp-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span> Due Today
+                        </p>
+</div>
+</div>
+<div class="shrink-0">
+<span class="inline-flex items-center rounded-md bg-red-500/10 px-2 py-1 text-xs font-bold text-red-500 ring-1 ring-inset ring-red-500/20">High</span>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-white dark:bg-surface-dark rounded-xl px-4 min-h-[72px] py-3 justify-between shadow-sm border border-neutral-100 dark:border-neutral-800">
+<div class="flex items-center gap-4">
+<div class="flex size-6 items-center justify-center shrink-0">
+<input class="h-5 w-5 rounded-full border-neutral-300 dark:border-neutral-500 border-2 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-0 focus:ring-offset-0 focus:outline-none transition-all cursor-pointer" type="checkbox"/>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-neutral-900 dark:text-white text-base font-bold leading-normal line-clamp-1">Pay Electric Bill</p>
+<p class="text-neutral-500 dark:text-neutral-400 text-sm font-medium leading-normal line-clamp-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">attach_money</span> $145.00
+                        </p>
+</div>
+</div>
+<div class="shrink-0">
+<span class="inline-flex items-center rounded-md bg-red-500/10 px-2 py-1 text-xs font-bold text-red-500 ring-1 ring-inset ring-red-500/20">High</span>
+</div>
+</div>
+<p class="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mt-4 mb-1">Upcoming</p>
+<div class="flex items-center gap-4 bg-white dark:bg-surface-dark rounded-xl px-4 min-h-[72px] py-3 justify-between shadow-sm border border-neutral-100 dark:border-neutral-800">
+<div class="flex items-center gap-4">
+<div class="flex size-6 items-center justify-center shrink-0">
+<input class="h-5 w-5 rounded-full border-neutral-300 dark:border-neutral-500 border-2 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-0 focus:ring-offset-0 focus:outline-none transition-all cursor-pointer" type="checkbox"/>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-neutral-900 dark:text-white text-base font-bold leading-normal line-clamp-1">Transfer to Savings</p>
+<p class="text-neutral-500 dark:text-neutral-400 text-sm font-medium leading-normal line-clamp-1">Tomorrow</p>
+</div>
+</div>
+<div class="shrink-0">
+<span class="inline-flex items-center rounded-md bg-yellow-500/10 px-2 py-1 text-xs font-bold text-yellow-600 dark:text-yellow-500 ring-1 ring-inset ring-yellow-500/20">Med</span>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-white dark:bg-surface-dark rounded-xl px-4 min-h-[72px] py-3 justify-between shadow-sm border border-neutral-100 dark:border-neutral-800">
+<div class="flex items-center gap-4">
+<div class="flex size-6 items-center justify-center shrink-0">
+<input class="h-5 w-5 rounded-full border-neutral-300 dark:border-neutral-500 border-2 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-0 focus:ring-offset-0 focus:outline-none transition-all cursor-pointer" type="checkbox"/>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-neutral-900 dark:text-white text-base font-bold leading-normal line-clamp-1">Categorize Weekend Expenses</p>
+<p class="text-neutral-500 dark:text-neutral-400 text-sm font-medium leading-normal line-clamp-1">This Week</p>
+</div>
+</div>
+<div class="shrink-0">
+<span class="inline-flex items-center rounded-md bg-sky-500/10 px-2 py-1 text-xs font-bold text-sky-600 dark:text-sky-400 ring-1 ring-inset ring-sky-500/20">Low</span>
+</div>
+</div>
+<div class="h-16"></div>
+</div>
+<button class="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-white shadow-lg shadow-primary/30 flex items-center justify-center hover:bg-sky-500 transition-all active:scale-95 z-30">
+<span class="material-symbols-outlined text-[32px]">add</span>
+</button>
+</div>
+</body></html>
