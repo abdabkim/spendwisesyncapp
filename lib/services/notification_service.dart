@@ -23,7 +23,7 @@ class NotificationService {
 
     // Android initialization settings
     const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@android:drawable/ic_dialog_info');
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
     // iOS initialization settings
     const DarwinInitializationSettings initializationSettingsIOS =
@@ -90,7 +90,7 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           showWhen: true,
-          icon: '@mipmap/ic_launcher',
+          icon: 'launcher_icon',
         );
 
     // iOS notification details
@@ -259,7 +259,7 @@ class NotificationService {
           channelDescription: 'Notifications for todo items',
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+          icon: 'launcher_icon',
         );
 
     const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(

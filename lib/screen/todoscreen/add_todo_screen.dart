@@ -549,11 +549,17 @@ class _AddTodoScreenState extends State<AddTodoScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: AppColors.primary,
-              surface: cardColor,
-              background: backgroundColor,
-            ),
+            colorScheme: isDark
+                ? ColorScheme.dark(
+                    primary: AppColors.primary,
+                    surface: cardColor,
+                    background: backgroundColor,
+                  )
+                : ColorScheme.light(
+                    primary: AppColors.primary,
+                    surface: cardColor,
+                    background: backgroundColor,
+                  ),
           ),
           child: child!,
         );
@@ -580,11 +586,17 @@ class _AddTodoScreenState extends State<AddTodoScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: AppColors.primary,
-              surface: cardColor,
-              background: backgroundColor,
-            ),
+            colorScheme: isDark
+                ? ColorScheme.dark(
+                    primary: AppColors.primary,
+                    surface: cardColor,
+                    background: backgroundColor,
+                  )
+                : ColorScheme.light(
+                    primary: AppColors.primary,
+                    surface: cardColor,
+                    background: backgroundColor,
+                  ),
           ),
           child: child!,
         );

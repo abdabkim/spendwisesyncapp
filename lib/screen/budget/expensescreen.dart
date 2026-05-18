@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:spendwisesyncapp/services/calendar_service.dart';
+import 'package:spendwisesyncapp/screen/budget/calendar_sync_screen.dart';
 
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({Key? key}) : super(key: key);
@@ -57,6 +59,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   bool _isLoading = true;
   String _currencySymbol = '\$';
+
+  List<CalendarEvent> _calendarEvents = [];
+  final CalendarService _calendarService = CalendarService();
 
   @override
   void initState() {
@@ -153,7 +158,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             );
           }
         }
+      });
 
+      final calendarEvents = await _calendarService.getEvents(userId);
+
+      setState(() {
+        _calendarEvents = calendarEvents;
         _isLoading = false;
       });
     } catch (e) {
@@ -819,6 +829,121 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     }
   }
 
+  Widget _buildPredictiveSpendBanner() {
+    if (_calendarEvents.isEmpty) return const SizedBox.shrink();
+
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final weekEvents = _calendarEvents.where((e) {
+      final weekEnd = weekStart.add(const Duration(days: 7));
+      return e.date.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
+          e.date.isBefore(weekEnd) &&
+          e.projectedCost > 0;
+    }).toList();
+
+    if (weekEvents.isEmpty) return const SizedBox.shrink();
+
+    final totalProjected = weekEvents.fold<double>(0, (sum, e) => sum + e.projectedCost);
+    final primaryEvent = weekEvents.first;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? cardDark : cardLight;
+    final borderColor = isDark ? borderDark : borderLight;
+    final textGrey = isDark ? textGreyDark : textGreyLight;
+    final textLight = isDark ? textLightDark : textLightLight;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFFf59e0b).withOpacity(0.12),
+              const Color(0xFF8b5cf6).withOpacity(0.04),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFf59e0b).withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFf59e0b).withOpacity(0.03),
+              blurRadius: 10,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.insights, color: Color(0xFFf59e0b), size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'SMART CALENDAR PREDICTOR',
+                  style: TextStyle(
+                    color: Color(0xFFf59e0b),
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CalendarSyncScreen(),
+                      ),
+                    ).then((_) => _loadBudgetData());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFf59e0b).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'MANAGE',
+                      style: TextStyle(
+                        color: Color(0xFFf59e0b),
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Your calendar predicts a scaling demand this week! "${primaryEvent.title}" is on ${DateFormat('EEEE').format(primaryEvent.date)}.',
+              style: TextStyle(
+                color: textLight,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Your usual \$100.00 weekend limit is recommended to scale up to \$${(100.00 + totalProjected).toStringAsFixed(0)} to accommodate this. We advise trimming non-essential daily limits to prepare.',
+              style: TextStyle(
+                color: textGrey,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -868,6 +993,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildPredictiveSpendBanner(),
             const SizedBox(height: 20),
 
             // Total Available Money Card

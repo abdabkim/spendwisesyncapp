@@ -439,20 +439,30 @@ class _TodoDashboardState extends State<TodoDashboard> {
 
     return SliverToBoxAdapter(
       child: Container(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+        padding: const EdgeInsets.fromLTRB(16, 24, 24, 24),
         decoration: BoxDecoration(color: backgroundColor.withOpacity(0.8)),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
+                // Back button — only shown when there is a page to go back to
+                if (Navigator.canPop(context)) ...[
+                  IconButton(
+                    icon: Icon(Icons.arrow_back, color: textLight),
+                    onPressed: () => Navigator.maybePop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 Container(
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(color: borderColor, width: 2),
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [primary, Color(0xFF8b5cf6)],
                     ),
                   ),
@@ -501,7 +511,7 @@ class _TodoDashboardState extends State<TodoDashboard> {
                 border: Border.all(color: borderColor),
               ),
               child: IconButton(
-                icon: Icon(Icons.search, size: 24),
+                icon: const Icon(Icons.search, size: 24),
                 color: textLight,
                 onPressed: () {},
               ),

@@ -6,9 +6,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:spendwisesyncapp/screen/budget/analyticsscreen.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:spendwisesyncapp/screen/budget/receiptsscreen.dart';
 import 'package:spendwisesyncapp/screen/home/homepage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:spendwisesyncapp/screen/settings/settingsscreen.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -41,6 +43,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String _userName = '';
   String _userEmail = '';
   String? _userPhotoUrl;
+  Uint8List? _localImageBytes;
   DateTime? _lastPasswordChange;
   bool _isLoading = true;
 
@@ -74,7 +77,7 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       final prefs = await SharedPreferences.getInstance();
-      final cachedPhotoUrl = prefs.getString('user_photo_url');
+      final cachedPhotoUrl = prefs.getString('userPhotoUrl');
 
       if (cachedPhotoUrl != null && cachedPhotoUrl.isNotEmpty) {
         setState(() {
@@ -101,7 +104,7 @@ class _ProfilePageState extends State<ProfilePage> {
           });
 
           if (_userPhotoUrl != null && _userPhotoUrl!.isNotEmpty) {
-            await prefs.setString('user_photo_url', _userPhotoUrl!);
+            await prefs.setString('userPhotoUrl', _userPhotoUrl!);
           }
         }
       } else {
@@ -132,31 +135,29 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 85,
-        maxWidth: 1920,
-        maxHeight: 1920,
+        imageQuality: 50,
+        maxWidth: 800,
+        maxHeight: 800,
       );
       if (image == null) return;
 
-      final File imageFile = File(image.path);
-
-      if (!await imageFile.exists()) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Image file not found'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
+      final Uint8List imageBytes = await image.readAsBytes();
+      
+      // Instantly update the avatar UI optimistically
+      if (mounted) {
+        setState(() {
+          _localImageBytes = imageBytes;
+        });
       }
 
-      final int fileSizeInBytes = await imageFile.length();
+      final int fileSizeInBytes = imageBytes.length;
       final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
       if (fileSizeInMB > 5) {
         if (mounted) {
+          setState(() {
+            _localImageBytes = null;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Image size must be less than 5MB'),
@@ -178,6 +179,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (!allowedExtensions.contains(fileExtension)) {
         if (mounted) {
+          setState(() {
+            _localImageBytes = null;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -193,6 +197,9 @@ class _ProfilePageState extends State<ProfilePage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         if (mounted) {
+          setState(() {
+            _localImageBytes = null;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Please sign in to upload photo'),
@@ -247,7 +254,7 @@ class _ProfilePageState extends State<ProfilePage> {
       );
 
       try {
-        final UploadTask uploadTask = storageRef.putFile(imageFile, metadata);
+        final UploadTask uploadTask = storageRef.putFile(File(image.path), metadata);
 
         final TaskSnapshot taskSnapshot = await uploadTask;
 
@@ -272,11 +279,12 @@ class _ProfilePageState extends State<ProfilePage> {
         }, SetOptions(merge: true));
 
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_photo_url', downloadURL);
+        await prefs.setString('userPhotoUrl', downloadURL);
 
         if (mounted) {
           setState(() {
             _userPhotoUrl = downloadURL;
+            _localImageBytes = null; // Clear local picked image, fall back to newly loaded URL
           });
 
           if (Navigator.canPop(context)) {
@@ -295,6 +303,9 @@ class _ProfilePageState extends State<ProfilePage> {
         }
       } on FirebaseException catch (e) {
         if (mounted) {
+          setState(() {
+            _localImageBytes = null; // Revert back to original on failure
+          });
           if (Navigator.canPop(context)) {
             Navigator.pop(context);
           }
@@ -303,9 +314,9 @@ class _ProfilePageState extends State<ProfilePage> {
           if (e.code == 'unauthorized') {
             errorMessage =
                 'Permission denied. Please check Firebase Storage rules.';
-          } else if (e.code == 'canceled') {
+          } else if (e.code == 'canceled' || e.code == '-13040') {
             errorMessage =
-                'Upload was cancelled. Please check your Firebase Storage rules and internet connection.';
+                'Upload was cancelled. Please check your Firebase Storage rules, internet connection, and App Check console settings.';
           } else if (e.message != null) {
             errorMessage = 'Upload error: ${e.message}';
           }
@@ -321,6 +332,9 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _localImageBytes = null; // Revert back to original on failure
+        });
         if (Navigator.canPop(context)) {
           Navigator.pop(context);
         }
@@ -445,9 +459,18 @@ class _ProfilePageState extends State<ProfilePage> {
                                   size: 24,
                                 ),
                                 onPressed: () {
-                                  Navigator.pushReplacementNamed(
+                                  Navigator.pushReplacement(
                                     context,
-                                    '/home',
+                                    PageRouteBuilder(
+                                      pageBuilder: (context, animation, secondaryAnimation) =>
+                                          HomePage(),
+                                      transitionDuration: const Duration(milliseconds: 300),
+                                      reverseTransitionDuration: const Duration(milliseconds: 300),
+                                      transitionsBuilder:
+                                          (context, animation, secondaryAnimation, child) {
+                                        return FadeTransition(opacity: animation, child: child);
+                                      },
+                                    ),
                                   );
                                 },
                               ),
@@ -480,53 +503,57 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 ),
                                 child: ClipOval(
-                                  child:
-                                      _userPhotoUrl != null &&
-                                          _userPhotoUrl!.isNotEmpty
-                                      ? Image.network(
-                                          _userPhotoUrl!,
+                                  child: _localImageBytes != null
+                                      ? Image.memory(
+                                          _localImageBytes!,
                                           fit: BoxFit.cover,
-                                          loadingBuilder: (context, child, loadingProgress) {
-                                            if (loadingProgress == null)
-                                              return child;
-                                            return Container(
-                                              color: cardSurfaceColor,
-                                              child: Center(
-                                                child: CircularProgressIndicator(
-                                                  color: primary,
-                                                  value:
-                                                      loadingProgress
-                                                              .expectedTotalBytes !=
-                                                          null
-                                                      ? loadingProgress
-                                                                .cumulativeBytesLoaded /
-                                                            loadingProgress
-                                                                .expectedTotalBytes!
-                                                      : null,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
+                                        )
+                                      : _userPhotoUrl != null &&
+                                              _userPhotoUrl!.isNotEmpty
+                                          ? Image.network(
+                                              _userPhotoUrl!,
+                                              fit: BoxFit.cover,
+                                              loadingBuilder: (context, child, loadingProgress) {
+                                                if (loadingProgress == null)
+                                                  return child;
                                                 return Container(
                                                   color: cardSurfaceColor,
-                                                  child: Icon(
-                                                    Icons.person,
-                                                    size: 70,
-                                                    color: textGrey,
+                                                  child: Center(
+                                                    child: CircularProgressIndicator(
+                                                      color: primary,
+                                                      value:
+                                                          loadingProgress
+                                                                  .expectedTotalBytes !=
+                                                              null
+                                                          ? loadingProgress
+                                                                    .cumulativeBytesLoaded /
+                                                                loadingProgress
+                                                                    .expectedTotalBytes!
+                                                          : null,
+                                                    ),
                                                   ),
                                                 );
                                               },
-                                        )
-                                      : Container(
-                                          color: cardSurfaceColor,
-                                          child: Icon(
-                                            Icons.person,
-                                            size: 70,
-                                            color: textGrey,
-                                          ),
-                                        ),
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                    return Container(
+                                                      color: cardSurfaceColor,
+                                                      child: Icon(
+                                                        Icons.person,
+                                                        size: 70,
+                                                        color: textGrey,
+                                                      ),
+                                                    );
+                                                  },
+                                            )
+                                          : Container(
+                                              color: cardSurfaceColor,
+                                              child: Icon(
+                                                Icons.person,
+                                                size: 70,
+                                                color: textGrey,
+                                              ),
+                                            ),
                                 ),
                               ),
                               Positioned(
@@ -750,20 +777,34 @@ class _ProfilePageState extends State<ProfilePage> {
     final isSelected = index == 3; // Profile page is index 3
     return GestureDetector(
       onTap: () {
-        if (index == 0) {
-          Navigator.pushNamed(context, '/home');
-        } else if (index != 3) {
-          Navigator.pushNamed(
-            context,
-            '/${index == 1
-                ? 'analytics'
-                : index == 2
-                ? 'receipts'
-                : index == 4
-                ? 'settings'
-                : 'home'}',
-          );
+        if (index == 3) return; // Already on Profile page
+
+        final Widget nextPage;
+        switch (index) {
+          case 0:
+            nextPage = HomePage();
+            break;
+          case 1:
+            nextPage = AnalyticsPage();
+            break;
+          case 4:
+            nextPage = SettingsPage();
+            break;
+          default:
+            return;
         }
+
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => nextPage,
+            transitionDuration: const Duration(milliseconds: 300),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
       },
       child: Container(
         width: 48,

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:spendwisesyncapp/screen/budget/analyticsscreen.dart';
 import 'package:spendwisesyncapp/screen/budget/expensescreen.dart';
 import 'package:spendwisesyncapp/screen/budget/receiptsscreen.dart';
@@ -11,65 +13,63 @@ import 'package:spendwisesyncapp/screen/profile/profilescreen.dart';
 import 'package:spendwisesyncapp/screen/settings/settingsscreen.dart';
 import 'package:spendwisesyncapp/tododashboard/todo_dashboard.dart';
 import 'package:spendwisesyncapp/services/notification_service.dart';
+import 'package:spendwisesyncapp/providers/shared_prefs_provider.dart';
+import 'package:spendwisesyncapp/providers/settings_provider.dart';
 import 'firebase_options.dart';
 import 'onboarding_screen.dart';
 import 'package:spendwisesyncapp/screen/auth/login_page.dart';
 import 'package:spendwisesyncapp/screen/auth/signup_page.dart';
 import 'package:spendwisesyncapp/screen/home/homepage.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load environment variables
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print("Error loading .env file: \$e");
+  }
+
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize Firebase App Check with Debug provider for development
+  try {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.debug,
+    );
+  } catch (e) {
+    print("Error activating App Check: $e");
+  }
 
   // Initialize Notification Service
   await NotificationService().initialize();
 
-  runApp(const MyApp());
+  // Initialize SharedPreferences
+  final sharedPreferences = await SharedPreferences.getInstance();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => MyAppState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the global settings provider for theme changes
+    final settingsState = ref.watch(settingsProvider);
 
-  // Static method to allow children widgets (like SettingsPage) to toggle the theme
-  static MyAppState of(BuildContext context) =>
-      context.findAncestorStateOfType<MyAppState>()!;
-}
-
-class MyAppState extends State<MyApp> {
-  // State variable to control the app-wide theme
-  bool _isDarkMode = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadThemePreference();
-  }
-
-  // Load theme preference from SharedPreferences
-  Future<void> _loadThemePreference() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _isDarkMode = prefs.getBool('isDarkMode') ?? true; // Default to dark mode
-    });
-  }
-
-  // Function to update theme from settings and save to SharedPreferences
-  Future<void> toggleTheme(bool isOn) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', isOn);
-    setState(() {
-      _isDarkMode = isOn;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return MaterialApp(
       title: 'SpendWise Sync',
       debugShowCheckedModeBanner: false,
@@ -97,8 +97,8 @@ class MyAppState extends State<MyApp> {
         ), // Matches your requested background
       ),
 
-      // Toggle this variable based on your Settings switch state
-      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      // Toggle this variable based on the Settings state
+      themeMode: settingsState.themeMode,
       // Initial route
       initialRoute: '/',
       // Define all routes

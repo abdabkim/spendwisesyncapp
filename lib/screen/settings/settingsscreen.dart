@@ -1,35 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // New Import
-import 'package:spendwisesyncapp/main.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:spendwisesyncapp/providers/settings_provider.dart';
+import 'package:spendwisesyncapp/screen/home/homepage.dart';
+import 'package:spendwisesyncapp/screen/budget/analyticsscreen.dart';
+import 'package:spendwisesyncapp/screen/profile/profilescreen.dart';
+import 'package:spendwisesyncapp/services/financial_report_service.dart';
+import 'package:spendwisesyncapp/screen/settings/support_chat_screen.dart';
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends ConsumerState<SettingsPage> {
   // State variables for interactive elements
-  bool _isDarkMode = true;
   bool _notificationsEnabled = true;
-  double _fontSizeValue = 0.5;
 
   // State variables for expansion logic
   bool _showPrivacy = false;
   bool _showTerms = false;
 
+  // Financial report states
+  bool _isExporting = false;
+  final FinancialReportService _reportService = FinancialReportService();
+
   // --- DESIGN TOKENS (From your HTML/Tailwind) ---
   final Color _kPrimary = const Color(0xFF13a4ec);
   final Color _kBackgroundLight = const Color(0xFFf6f7f8);
-  final Color _kBackgroundDark = const Color(0xFF101c22);
-  final Color _kCardDark = const Color(0xFF101c22);
   final double _kCornerRadius = 12.0;
 
   // Navigation colors matching analytics
-  static const Color backgroundDark = Color(0xFF101C22);
-  static const Color cardDark = Color(0xFF101C22);
   static const Color primary = Color(0xFF3b82f6);
   static const Color textGrey = Color(0xFF94a3b8);
 
@@ -45,10 +49,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _isDarkMode = prefs.getBool('isDarkMode') ?? true;
       _notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
     });
-    _updateSystemUI();
   }
 
   Future<void> _savePreference(String key, bool value) async {
@@ -59,25 +61,37 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Initialize _isDarkMode from the app's current theme mode
-    _isDarkMode = Theme.of(context).brightness == Brightness.dark;
   }
 
   void _updateSystemUI() {
+    final settings = ref.read(settingsProvider);
+    bool isDarkMode;
+    if (settings.themeMode == ThemeMode.system) {
+      isDarkMode =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+          Brightness.dark;
+    } else {
+      isDarkMode = settings.themeMode == ThemeMode.dark;
+    }
+
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: _isDarkMode
+        statusBarIconBrightness: isDarkMode
             ? Brightness.light
             : Brightness.dark,
-        statusBarBrightness: _isDarkMode ? Brightness.dark : Brightness.light,
+        statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Logic to toggle colors based on the _isDarkMode switch state
+    final settings = ref.watch(settingsProvider);
+    final bool _isDarkMode = settings.themeMode == ThemeMode.system
+        ? MediaQuery.platformBrightnessOf(context) == Brightness.dark
+        : settings.themeMode == ThemeMode.dark;
+
     final Color bgColor = _isDarkMode
         ? const Color(0xFF101C22)
         : _kBackgroundLight;
@@ -90,7 +104,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ? Colors.white
         : const Color(0xFF0F172A);
     final Color subTextColor = _isDarkMode
-        ? Colors.white.withOpacity(0.7)
+        ? Colors.white.withValues(alpha: 0.7)
         : Colors.black54;
 
     return SafeArea(
@@ -103,7 +117,21 @@ class _SettingsPageState extends State<SettingsPage> {
           backgroundColor: bgColor,
           leading: IconButton(
             icon: Icon(Icons.arrow_back, color: textColor),
-            onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) =>
+                      HomePage(),
+                  transitionDuration: const Duration(milliseconds: 300),
+                  reverseTransitionDuration: const Duration(milliseconds: 300),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                        return FadeTransition(opacity: animation, child: child);
+                      },
+                ),
+              );
+            },
           ),
           title: Text(
             'Settings',
@@ -113,6 +141,7 @@ class _SettingsPageState extends State<SettingsPage> {
               fontSize: 18,
               letterSpacing: -0.015,
             ),
+            textScaler: TextScaler.noScaling,
           ),
           centerTitle: true,
           bottom: PreferredSize(
@@ -138,18 +167,13 @@ class _SettingsPageState extends State<SettingsPage> {
                           _buildSectionTitle('App Preferences', textColor),
                           const SizedBox(height: 8),
                           _buildSettingsGroup(cardColor, _isDarkMode, [
-                            _buildSwitchTile(
-                              icon: Icons.dark_mode,
-                              title: 'Dark Mode',
-                              value: _isDarkMode,
-                              onChanged: (val) {
-                                setState(() {
-                                  _isDarkMode = val;
-                                  _updateSystemUI();
-                                });
-                                _savePreference('isDarkMode', val);
-                                // Update the app-wide theme
-                                MyApp.of(context).toggleTheme(val);
+                            _buildThemeSelectorTile(
+                              currentMode: settings.themeMode,
+                              onChanged: (mode) {
+                                ref
+                                    .read(settingsProvider.notifier)
+                                    .setThemeMode(mode);
+                                _updateSystemUI();
                               },
                               textColor: textColor,
                               isDark: _isDarkMode,
@@ -161,6 +185,94 @@ class _SettingsPageState extends State<SettingsPage> {
                               onChanged: (val) {
                                 setState(() => _notificationsEnabled = val);
                                 _savePreference('notificationsEnabled', val);
+                              },
+                              textColor: textColor,
+                              isDark: _isDarkMode,
+                              showDivider: false,
+                            ),
+                          ]),
+
+                          const SizedBox(height: 32),
+
+                          // --- FINANCIAL REPORT SECTION ---
+                          _buildSectionTitle('Financial Statements', textColor),
+                          const SizedBox(height: 8),
+                          _buildSettingsGroup(cardColor, _isDarkMode, [
+                            _buildNavigationTile(
+                              icon: Icons.picture_as_pdf_outlined,
+                              title: 'Export PDF Statement',
+                              subtitle:
+                                  'Download printable Balance Sheet & P&L',
+                              onTap: () async {
+                                setState(() => _isExporting = true);
+                                try {
+                                  await _reportService.exportPDF();
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Failed to export PDF: $e',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                } finally {
+                                  if (mounted) {
+                                    setState(() => _isExporting = false);
+                                  }
+                                }
+                              },
+                              textColor: textColor,
+                              isDark: _isDarkMode,
+                            ),
+                            _buildNavigationTile(
+                              icon: Icons.grid_on_outlined,
+                              title: 'Export CSV Ledger',
+                              subtitle: 'Download Excel-ready spreadsheets',
+                              onTap: () async {
+                                setState(() => _isExporting = true);
+                                try {
+                                  await _reportService.exportCSV();
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Failed to export CSV: $e',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                } finally {
+                                  if (mounted) {
+                                    setState(() => _isExporting = false);
+                                  }
+                                }
+                              },
+                              textColor: textColor,
+                              isDark: _isDarkMode,
+                              showDivider: false,
+                            ),
+                          ]),
+
+                          const SizedBox(height: 32),
+
+                          // --- SUPPORT SECTION ---
+                          _buildSectionTitle('Support', textColor),
+                          const SizedBox(height: 8),
+                          _buildSettingsGroup(cardColor, _isDarkMode, [
+                            _buildNavigationTile(
+                              icon: Icons.support_agent,
+                              title: 'AI Support Chat',
+                              subtitle: 'Ask about app features & FAQs',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const SupportChatScreen(),
+                                  ),
+                                );
                               },
                               textColor: textColor,
                               isDark: _isDarkMode,
@@ -226,7 +338,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 Text(
                                   'Version 2.4.1 (Build 108)',
                                   style: TextStyle(
-                                    color: subTextColor.withOpacity(0.5),
+                                    color: subTextColor.withValues(alpha: 0.5),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -254,6 +366,54 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
             ),
+            if (_isExporting)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: _isDarkMode
+                            ? const Color(0xFF1E293B)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFF13a4ec),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Compiling Financial Report...',
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Structuring Balance Sheets & Forecasts',
+                            style: TextStyle(color: Colors.grey, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -317,7 +477,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: _kPrimary.withOpacity(0.1),
+        color: _kPrimary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(icon, color: _kPrimary, size: 24),
@@ -330,7 +490,7 @@ class _SettingsPageState extends State<SettingsPage> {
       thickness: 1,
       indent: 12,
       endIndent: 12,
-      color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+      color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
     );
   }
 
@@ -357,10 +517,73 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           value: value,
           onChanged: onChanged,
-          activeColor: Colors.white,
+          activeThumbColor: Colors.white,
           activeTrackColor: _kPrimary,
         ),
         if (showDivider) _buildDivider(isDark),
+      ],
+    );
+  }
+
+  Widget _buildThemeSelectorTile({
+    required ThemeMode currentMode,
+    required ValueChanged<ThemeMode> onChanged,
+    required Color textColor,
+    required bool isDark,
+  }) {
+    return Column(
+      children: [
+        ListTile(
+          leading: _buildIcon(Icons.palette_outlined),
+          title: Text(
+            'App Theme',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+            ),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+            child: SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(
+                  value: ThemeMode.light,
+                  icon: Icon(Icons.light_mode, size: 16),
+                  label: Text(
+                    'Light',
+                    style: TextStyle(fontSize: 12),
+                    textScaler: TextScaler.noScaling,
+                  ),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.dark,
+                  icon: Icon(Icons.dark_mode, size: 16),
+                  label: Text(
+                    'Dark',
+                    style: TextStyle(fontSize: 12),
+                    textScaler: TextScaler.noScaling,
+                  ),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.system,
+                  icon: Icon(Icons.settings_system_daydream, size: 16),
+                  label: Text(
+                    'System',
+                    style: TextStyle(fontSize: 12),
+                    textScaler: TextScaler.noScaling,
+                  ),
+                ),
+              ],
+              selected: {currentMode},
+              onSelectionChanged: (Set<ThemeMode> newSelection) {
+                onChanged(newSelection.first);
+              },
+              style: ButtonStyle(visualDensity: VisualDensity.compact),
+            ),
+          ),
+        ),
+        _buildDivider(isDark),
       ],
     );
   }
@@ -393,7 +616,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle,
                   style: TextStyle(
                     fontSize: 12,
-                    color: textColor.withOpacity(0.5),
+                    color: textColor.withValues(alpha: 0.5),
                   ),
                 )
               : null,
@@ -404,7 +627,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Text(
                   trailingText,
                   style: TextStyle(
-                    color: textColor.withOpacity(0.5),
+                    color: textColor.withValues(alpha: 0.5),
                     fontSize: 14,
                   ),
                 ),
@@ -413,7 +636,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 duration: const Duration(milliseconds: 200),
                 child: Icon(
                   Icons.chevron_right,
-                  color: textColor.withOpacity(0.5),
+                  color: textColor.withValues(alpha: 0.5),
                 ),
               ),
             ],
@@ -429,9 +652,9 @@ class _SettingsPageState extends State<SettingsPage> {
     return Container(
       height: 80,
       decoration: BoxDecoration(
-        color: cardColor.withOpacity(0.9),
+        color: cardColor.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -450,30 +673,43 @@ class _SettingsPageState extends State<SettingsPage> {
     final isSelected = index == 4; // Settings page is index 4
     return GestureDetector(
       onTap: () {
-        if (index == 0) {
-          // Navigate back to home
-          Navigator.pushNamed(context, '/home');
-        } else if (index != 4) {
-          // Navigate to other page
-          Navigator.pushNamed(
-            context,
-            '/${index == 1
-                ? 'analytics'
-                : index == 2
-                ? 'receipts'
-                : index == 3
-                ? 'profile'
-                : index == 0
-                ? 'home'
-                : 'home'}',
-          );
+        if (index == 4) return; // Already on Settings page
+
+        final Widget nextPage;
+        switch (index) {
+          case 0:
+            nextPage = HomePage();
+            break;
+          case 1:
+            nextPage = AnalyticsPage();
+            break;
+          case 3:
+            nextPage = ProfilePage();
+            break;
+          default:
+            return;
         }
+
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => nextPage,
+            transitionDuration: const Duration(milliseconds: 300),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+          ),
+        );
       },
       child: Container(
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: isSelected ? primary.withOpacity(0.1) : Colors.transparent,
+          color: isSelected
+              ? primary.withValues(alpha: 0.1)
+              : Colors.transparent,
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: isSelected ? primary : textGrey, size: 24),
@@ -492,7 +728,7 @@ class _SettingsPageState extends State<SettingsPage> {
         border: Border.all(color: backgroundColor, width: 6),
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(0.3),
+            color: primary.withValues(alpha: 0.3),
             blurRadius: 20,
             spreadRadius: 2,
           ),
@@ -501,7 +737,6 @@ class _SettingsPageState extends State<SettingsPage> {
       child: IconButton(
         icon: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 32),
         onPressed: () {
-          Navigator.pop(context);
           Navigator.pushNamed(context, '/receipts');
         },
       ),

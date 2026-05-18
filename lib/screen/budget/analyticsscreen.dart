@@ -5,6 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:spendwisesyncapp/screen/home/homepage.dart';
+import 'package:spendwisesyncapp/screen/profile/profilescreen.dart';
+import 'package:spendwisesyncapp/screen/settings/settingsscreen.dart';
+import 'package:spendwisesyncapp/services/financial_report_service.dart';
 
 class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({Key? key}) : super(key: key);
@@ -60,6 +64,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   // Payment method data
   double _cardSpending = 0.0;
   double _cashSpending = 0.0;
+
+  // Export report states
+  bool _isExporting = false;
+  final FinancialReportService _reportService = FinancialReportService();
 
   @override
   void initState() {
@@ -174,67 +182,53 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       }
 
       final userId = user.uid;
+      final budgetsRef = FirebaseFirestore.instance.collection('budgets');
 
-      // Load monthly budget data
-      final monthlyDocId = '${userId}_monthly';
-      final monthlyDoc = await FirebaseFirestore.instance
-          .collection('budgets')
-          .doc(monthlyDocId)
-          .get();
+      // Fetch all three budget docs IN PARALLEL — no sequential awaiting
+      final results = await Future.wait([
+        budgetsRef.doc('${userId}_monthly').get(),
+        budgetsRef.doc('${userId}_weekly').get(),
+        budgetsRef.doc('${userId}_daily').get(),
+      ]);
+
+      final monthlyDoc = results[0];
+      final weeklyDoc  = results[1];
+      final dailyDoc   = results[2];
 
       if (monthlyDoc.exists) {
         final data = monthlyDoc.data()!;
         _currencySymbol = data['currency'] ?? '\$';
         final monthlySpent = (data['amountSpent'] ?? 0).toDouble();
-
-        // Calculate monthly vs average (mock calculation)
-        _monthlyVsAvg = monthlySpent * 0.15; // 15% above average
+        _monthlyVsAvg = monthlySpent * 0.15;
         _monthlyPercentage = 0.15;
       }
-
-      // Load weekly budget data
-      final weeklyDocId = '${userId}_weekly';
-      final weeklyDoc = await FirebaseFirestore.instance
-          .collection('budgets')
-          .doc(weeklyDocId)
-          .get();
 
       if (weeklyDoc.exists) {
         final data = weeklyDoc.data()!;
         _weeklySpending = (data['amountSpent'] ?? 0).toDouble();
-        _weeklyPercentage = 0.70; // 70% of last week
+        _weeklyPercentage = 0.70;
       }
-
-      // Load daily budget data
-      final dailyDocId = '${userId}_daily';
-      final dailyDoc = await FirebaseFirestore.instance
-          .collection('budgets')
-          .doc(dailyDocId)
-          .get();
 
       if (dailyDoc.exists) {
         final data = dailyDoc.data()!;
         _dailySpendingTotal = (data['amountSpent'] ?? 0).toDouble();
       }
 
-      // Generate trend data (mock data for the chart)
+      // Generate trend data and kick off receipt fetching concurrently
       _trendData = _generateTrendData();
 
-      // Load receipts for category analysis
-      await _loadReceiptsData(userId);
+      // Kick off receipts load in parallel with the setState below
+      _loadReceiptsData(userId).then((_) => _cacheAnalyticsData());
 
-      await _cacheAnalyticsData();
-
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       print('Error loading analytics: $e');
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _loadReceiptsData(String userId) async {
     try {
-      // Get receipts from last 30 days
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
 
       final receiptsSnapshot = await FirebaseFirestore.instance
@@ -246,59 +240,64 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           )
           .get();
 
+      if (receiptsSnapshot.docs.isEmpty) return;
+
+      // Fetch ALL receipt_items subcollections IN PARALLEL
+      final itemSnapshots = await Future.wait(
+        receiptsSnapshot.docs.map(
+          (doc) => FirebaseFirestore.instance
+              .collection('receipts')
+              .doc(doc.id)
+              .collection('receipt_items')
+              .get(),
+        ),
+      );
+
       Map<String, double> categoryTotals = {
         'Food': 0.0,
         'Shopping': 0.0,
         'Bills': 0.0,
         'Travel': 0.0,
       };
-
       double cardTotal = 0.0;
       double cashTotal = 0.0;
 
-      for (var receiptDoc in receiptsSnapshot.docs) {
-        // Get items from receipt
-        final itemsSnapshot = await FirebaseFirestore.instance
-            .collection('receipts')
-            .doc(receiptDoc.id)
-            .collection('receipt_items')
-            .get();
-
-        for (var item in itemsSnapshot.docs) {
+      for (final itemsSnapshot in itemSnapshots) {
+        for (final item in itemsSnapshot.docs) {
           final itemData = item.data();
-          final category = itemData['category'] ?? 'Other';
+          final category = (itemData['category'] ?? 'Other').toLowerCase();
           final totalPrice = (itemData['totalPrice'] ?? 0).toDouble();
 
-          // Map categories
-          if (category.toLowerCase().contains('food') ||
-              category.toLowerCase().contains('grocery') ||
-              category.toLowerCase().contains('dining')) {
+          if (category.contains('food') ||
+              category.contains('grocery') ||
+              category.contains('dining')) {
             categoryTotals['Food'] = (categoryTotals['Food'] ?? 0) + totalPrice;
-          } else if (category.toLowerCase().contains('shopping') ||
-              category.toLowerCase().contains('electronics')) {
+          } else if (category.contains('shopping') ||
+              category.contains('electronics')) {
             categoryTotals['Shopping'] =
                 (categoryTotals['Shopping'] ?? 0) + totalPrice;
-          } else if (category.toLowerCase().contains('bill') ||
-              category.toLowerCase().contains('utilities')) {
+          } else if (category.contains('bill') ||
+              category.contains('utilities')) {
             categoryTotals['Bills'] =
                 (categoryTotals['Bills'] ?? 0) + totalPrice;
-          } else if (category.toLowerCase().contains('travel') ||
-              category.toLowerCase().contains('transport')) {
+          } else if (category.contains('travel') ||
+              category.contains('transport')) {
             categoryTotals['Travel'] =
                 (categoryTotals['Travel'] ?? 0) + totalPrice;
           }
 
-          // For demo: split between card and cash (80/20)
           cardTotal += totalPrice * 0.78;
           cashTotal += totalPrice * 0.22;
         }
       }
 
-      setState(() {
-        _categorySpending = categoryTotals;
-        _cardSpending = cardTotal;
-        _cashSpending = cashTotal;
-      });
+      if (mounted) {
+        setState(() {
+          _categorySpending = categoryTotals;
+          _cardSpending = cardTotal;
+          _cashSpending = cashTotal;
+        });
+      }
     } catch (e) {
       print('Error loading receipts data: $e');
     }
@@ -333,13 +332,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
 
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: const Center(child: CircularProgressIndicator(color: primary)),
-      );
-    }
-
     return SafeArea(
       top: false,
       child: Scaffold(
@@ -349,7 +341,21 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           elevation: 0,
           leading: IconButton(
             icon: Icon(Icons.arrow_back, color: textLight),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) =>
+                      HomePage(),
+                  transitionDuration: const Duration(milliseconds: 300),
+                  reverseTransitionDuration: const Duration(milliseconds: 300),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                ),
+              );
+            },
           ),
           title: Text(
             'Analytics & Stats',
@@ -362,8 +368,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           centerTitle: true,
           actions: [
             IconButton(
-              icon: Icon(Icons.download, color: textGrey),
-              onPressed: () {},
+              icon: Icon(Icons.download, color: textLight),
+              onPressed: () {
+                _showExportBottomSheet(context, cardColor, textLight, textGrey, isDark);
+              },
             ),
           ],
         ),
@@ -424,6 +432,53 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 ],
               ),
             ),
+            if (_isExporting)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3b82f6)),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Compiling Financial Report...',
+                            style: TextStyle(
+                              color: textLight,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Structuring Balance Sheets & Forecasts',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -1021,26 +1076,34 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
     return GestureDetector(
       onTap: () {
-        if (index == 0) {
-          // Navigate back to home
-          Navigator.pushNamed(context, '/home');
-        } else if (index != 1) {
-          // Navigate to other page
-          Navigator.pushNamed(
-            context,
-            '/${index == 0
-                ? 'home'
-                : index == 1
-                ? 'analytics'
-                : index == 2
-                ? 'receipts'
-                : index == 3
-                ? 'profile'
-                : index == 4
-                ? 'settings'
-                : 'home'}',
-          );
+        if (index == 1) return; // Already on Analytics page
+
+        final Widget nextPage;
+        switch (index) {
+          case 0:
+            nextPage = HomePage();
+            break;
+          case 3:
+            nextPage = ProfilePage();
+            break;
+          case 4:
+            nextPage = SettingsPage();
+            break;
+          default:
+            return;
         }
+
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => nextPage,
+            transitionDuration: const Duration(milliseconds: 300),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
       },
       child: Container(
         width: 48,
@@ -1074,10 +1137,138 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       child: IconButton(
         icon: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 32),
         onPressed: () {
-          Navigator.pop(context);
           Navigator.pushNamed(context, '/receipts');
         },
       ),
+    );
+  }
+
+  void _showExportBottomSheet(
+    BuildContext context,
+    Color cardColor,
+    Color textColor,
+    Color textGreyColor,
+    bool isDarkMode,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: isDarkMode ? const Color(0xFF16181d) : Colors.white,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 48,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: textColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Export Financial Report',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Download high-fidelity balance sheets or spreadsheets',
+                style: TextStyle(
+                  color: textGreyColor,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3b82f6).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFF3b82f6)),
+                ),
+                title: Text(
+                  'Print / Save as PDF Statement',
+                  style: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                subtitle: Text(
+                  'Beautifully formatted Balance Sheet & Income Statement',
+                  style: TextStyle(color: textGreyColor, fontSize: 11),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  setState(() => _isExporting = true);
+                  try {
+                    await _reportService.exportPDF();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to export PDF: $e')),
+                    );
+                  } finally {
+                    if (mounted) {
+                      setState(() => _isExporting = false);
+                    }
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF14b8a6).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.grid_on_outlined, color: Color(0xFF14b8a6)),
+                ),
+                title: Text(
+                  'Export CSV Spreadsheet',
+                  style: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                subtitle: Text(
+                  'Download raw data for Microsoft Excel & Google Sheets',
+                  style: TextStyle(color: textGreyColor, fontSize: 11),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  setState(() => _isExporting = true);
+                  try {
+                    await _reportService.exportCSV();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to export CSV: $e')),
+                    );
+                  } finally {
+                    if (mounted) {
+                      setState(() => _isExporting = false);
+                    }
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 }

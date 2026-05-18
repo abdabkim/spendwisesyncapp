@@ -223,6 +223,102 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  void _showForgotPasswordDialog() {
+    final TextEditingController resetEmailController = TextEditingController(text: _emailController.text.trim());
+    bool isResetting = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
+            final textLight = isDark ? AppColors.textLightDark : AppColors.textLightLight;
+            final textGrey = isDark ? AppColors.textGreyDark : AppColors.textGreyLight;
+
+            return AlertDialog(
+              backgroundColor: cardColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text('Reset Password', style: TextStyle(color: textLight, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Enter your email to receive a password reset link.', style: TextStyle(color: textGrey, fontSize: 14)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: resetEmailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: TextStyle(color: textLight),
+                    decoration: InputDecoration(
+                      hintText: 'Email address',
+                      hintStyle: TextStyle(color: textGrey.withValues(alpha: 0.6)),
+                      filled: true,
+                      fillColor: isDark ? AppColors.cardSurface : AppColors.cardSurfaceLight,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isResetting ? null : () => Navigator.pop(dialogContext),
+                  child: Text('Cancel', style: TextStyle(color: textGrey)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: isResetting
+                      ? null
+                      : () async {
+                          final email = resetEmailController.text.trim();
+                          if (email.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please enter an email address'), backgroundColor: AppColors.errorColor, behavior: SnackBarBehavior.floating),
+                            );
+                            return;
+                          }
+
+                          setState(() => isResetting = true);
+                          try {
+                            await _auth.sendPasswordResetEmail(email: email);
+                            if (context.mounted) {
+                              Navigator.pop(dialogContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Reset link sent to $email'), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating),
+                              );
+                            }
+                          } on FirebaseAuthException catch (e) {
+                            setState(() => isResetting = false);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(e.message ?? 'An error occurred'), backgroundColor: AppColors.errorColor, behavior: SnackBarBehavior.floating),
+                              );
+                            }
+                          } catch (e) {
+                             setState(() => isResetting = false);
+                             if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.errorColor, behavior: SnackBarBehavior.floating),
+                                );
+                             }
+                          }
+                        },
+                  child: isResetting
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Send Link', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   // Handle Google Sign-In
   Future<void> _handleGoogleSignIn() async {
     setState(() {
@@ -725,14 +821,7 @@ class _LoginPageState extends State<LoginPage> {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Forgot password feature coming soon'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
+              onPressed: _showForgotPasswordDialog,
               child: Text(
                 'Forgot Password?',
                 style: TextStyle(

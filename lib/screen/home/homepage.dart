@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:ui';
+import 'dart:convert';
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +15,9 @@ import 'package:spendwisesyncapp/screen/profile/profilescreen.dart';
 import 'package:spendwisesyncapp/screen/settings/settingsscreen.dart';
 import 'package:spendwisesyncapp/tododashboard/todo_dashboard.dart';
 import 'package:spendwisesyncapp/services/notification_service.dart';
+import 'package:spendwisesyncapp/services/permission_service.dart';
+import 'package:spendwisesyncapp/screen/advisor/financial_advisor_screen.dart';
+import 'package:spendwisesyncapp/screen/budget/calendar_sync_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -23,6 +29,14 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   late AnimationController _pulseController;
+
+  // Caching and Stream Subscriptions
+  List<Map<String, dynamic>> _cachedReceipts = [];
+  List<Map<String, dynamic>> _cachedTodos = [];
+  bool _receiptsLoading = true;
+  bool _todosLoading = true;
+  StreamSubscription<QuerySnapshot>? _receiptsSubscription;
+  StreamSubscription<QuerySnapshot>? _todosSubscription;
 
   // User data
   String _userName = 'Loading...';
@@ -74,6 +88,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _loadUserData();
     _requestNotificationPermissions();
     _loadBudgetData();
+
+    // Request necessary core permissions asynchronously
+    PermissionService().requestAllPermissions();
   }
 
   @override
@@ -93,6 +110,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Future<void> _loadCachedData() async {
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
+      
+      List<Map<String, dynamic>> cachedReceiptsList = [];
+      List<Map<String, dynamic>> cachedTodosList = [];
+      bool receiptsLoaded = false;
+      bool todosLoaded = false;
+
+      final receiptsJson = prefs.getString('cachedReceipts');
+      if (receiptsJson != null) {
+        cachedReceiptsList = List<Map<String, dynamic>>.from(json.decode(receiptsJson));
+        receiptsLoaded = true;
+      }
+
+      final todosJson = prefs.getString('cachedTodos');
+      if (todosJson != null) {
+        cachedTodosList = List<Map<String, dynamic>>.from(json.decode(todosJson));
+        todosLoaded = true;
+      }
+
       setState(() {
         _userName = prefs.getString('userName') ?? 'Loading...';
         _userEmail = prefs.getString('userEmail') ?? '';
@@ -100,8 +135,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         _dailySpent = prefs.getDouble('dailySpent') ?? 0;
         _dailyLimit = prefs.getDouble('dailyLimit') ?? 0;
         _currencySymbol = prefs.getString('currencySymbol') ?? '\$';
+        _cachedReceipts = cachedReceiptsList;
+        _cachedTodos = cachedTodosList;
         _isLoading = false;
         _budgetLoading = false;
+        if (receiptsLoaded) _receiptsLoading = false;
+        if (todosLoaded) _todosLoading = false;
       });
     } catch (e) {
       // If loading cached data fails, continue with normal loading
@@ -112,24 +151,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Get user data from Firestore
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
+        // Initialize background streams and load cache immediately
+        _initStreams(user.uid);
 
-        String userName;
-        String userEmail;
-        String? userPhotoUrl;
+        String userName = user.displayName ?? 'User';
+        String userEmail = user.email ?? '';
+        String? userPhotoUrl = user.photoURL;
 
-        if (userDoc.exists) {
-          userName = userDoc.data()?['fullName'] ?? user.displayName ?? 'User';
-          userEmail = userDoc.data()?['email'] ?? user.email ?? '';
-          userPhotoUrl = userDoc.data()?['photoURL'] ?? user.photoURL;
-        } else {
-          userName = user.displayName ?? 'User';
-          userEmail = user.email ?? '';
-          userPhotoUrl = user.photoURL;
+        // Try to fetch profile from Firestore, but catch any errors so it doesn't block the app/streams
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+          if (userDoc.exists) {
+            userName = userDoc.data()?['fullName'] ?? user.displayName ?? 'User';
+            userEmail = userDoc.data()?['email'] ?? user.email ?? '';
+            userPhotoUrl = userDoc.data()?['photoURL'] ?? user.photoURL;
+          }
+        } catch (e) {
+          print("Error fetching user profile from Firestore: $e");
         }
 
         // Save to SharedPreferences
@@ -197,6 +239,97 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     } catch (e) {
       setState(() => _budgetLoading = false);
     }
+  }
+
+  void _initStreams(String userId) {
+    _receiptsSubscription?.cancel();
+    _todosSubscription?.cancel();
+
+    // 1. Receipts Stream subscription
+    final receiptsQuery = FirebaseFirestore.instance
+        .collection('receipts')
+        .where('userId', isEqualTo: userId)
+        .orderBy('timestamp', descending: true)
+        .limit(5);
+
+    _receiptsSubscription = receiptsQuery.snapshots().listen((snapshot) async {
+      final List<Map<String, dynamic>> receiptsList = [];
+      
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final activityData = await _getReceiptActivityData(doc.id, data);
+        receiptsList.add({
+          'id': doc.id,
+          'merchantName': activityData['merchantName'] ?? 'Store',
+          'totalAmount': activityData['totalAmount'] ?? 0.0,
+          'imageUrl': activityData['imageUrl'],
+          'isToday': activityData['isToday'] ?? false,
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _cachedReceipts = receiptsList;
+          _receiptsLoading = false;
+        });
+      }
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('cachedReceipts', json.encode(receiptsList));
+      } catch (e) {
+        print('Error saving cached receipts: $e');
+      }
+    }, onError: (error) {
+      print('Error in receipts stream: $error');
+      if (mounted) {
+        setState(() => _receiptsLoading = false);
+      }
+    });
+
+    // 2. Todos Stream subscription
+    final todosQuery = FirebaseFirestore.instance
+        .collection('todos')
+        .where('userId', isEqualTo: userId)
+        .where('isCompleted', isEqualTo: false)
+        .orderBy('dueDate')
+        .limit(3);
+
+    _todosSubscription = todosQuery.snapshots().listen((snapshot) {
+      final List<Map<String, dynamic>> todosList = [];
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final dueDate = data['dueDate'] as Timestamp?;
+        todosList.add({
+          'id': doc.id,
+          'title': data['title'] ?? 'Untitled Task',
+          'category': data['category'] ?? 'Personal',
+          'priority': data['priority'] ?? 'Medium',
+          'dueDateMillis': dueDate?.millisecondsSinceEpoch,
+          'isCompleted': data['isCompleted'] ?? false,
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _cachedTodos = todosList;
+          _todosLoading = false;
+        });
+      }
+
+      try {
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setString('cachedTodos', json.encode(todosList));
+        });
+      } catch (e) {
+        print('Error saving cached todos: $e');
+      }
+    }, onError: (error) {
+      print('Error in todos stream: $error');
+      if (mounted) {
+        setState(() => _todosLoading = false);
+      }
+    });
   }
 
   Future<void> _requestNotificationPermissions() async {
@@ -276,6 +409,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _receiptsSubscription?.cancel();
+    _todosSubscription?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
@@ -559,16 +694,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         backgroundColor: backgroundColor,
         body: Stack(
           children: [
-            IndexedStack(
-              index: _selectedIndex,
-              children: [
-                _buildHomePage(),
-                _buildAnalyticsPage(),
-                _buildReceiptsPage('Receipts', Icons.qr_code_scanner),
-                _buildProfilePage('Profile', Icons.person),
-                _buildSettingsPage('Settings', Icons.settings),
-              ],
-            ),
+            _buildHomePage(),
             // Floating Bottom Navigation Bar
             Positioned(
               left: 16,
@@ -611,31 +737,51 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     return Stack(
       children: [
-        SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildHeader(),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    _buildDailySpendCard(),
-                    const SizedBox(height: 32),
-                    _buildQuickActions(),
-                    const SizedBox(height: 32),
-                    _buildRecentActivity(),
-                    const SizedBox(height: 32),
-                    _buildUpcomingTasks(),
-                    const SizedBox(height: 120),
-                  ],
-                ),
+        Positioned.fill(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(top: 130),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  _buildDailySpendCard(),
+                  const SizedBox(height: 32),
+                  _buildQuickActions(),
+                  const SizedBox(height: 32),
+                  _buildRecentActivity(),
+                  const SizedBox(height: 32),
+                  _buildUpcomingTasks(),
+                  const SizedBox(height: 120),
+                ],
               ),
-            ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+              child: _buildHeader(),
+            ),
           ),
         ),
       ],
     );
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'GOOD MORNING';
+    } else if (hour < 17) {
+      return 'GOOD AFTERNOON';
+    } else {
+      return 'GOOD EVENING';
+    }
   }
 
   Widget _buildHeader() {
@@ -651,59 +797,68 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              // Profile Picture
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: borderColor, width: 2),
-                  gradient: const LinearGradient(colors: [primary, secondary]),
+          Expanded(
+            child: Row(
+              children: [
+                // Profile Picture
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: borderColor, width: 2),
+                    gradient: const LinearGradient(colors: [primary, secondary]),
+                  ),
+                  child: _userPhotoUrl != null
+                      ? ClipOval(
+                          child: Image.network(
+                            _userPhotoUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                Icons.person,
+                                color: Colors.white,
+                                size: 24,
+                              );
+                            },
+                          ),
+                        )
+                      : Icon(Icons.person, color: Colors.white, size: 24),
                 ),
-                child: _userPhotoUrl != null
-                    ? ClipOval(
-                        child: Image.network(
-                          _userPhotoUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.person,
-                              color: Colors.white,
-                              size: 24,
-                            );
-                          },
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _getGreeting(),
+                        style: TextStyle(
+                          color: textGrey,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.2,
                         ),
-                      )
-                    : Icon(Icons.person, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'WELCOME BACK',
-                    style: TextStyle(
-                      color: textGrey,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                    ),
+                        textScaler: TextScaler.noScaling,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _isLoading ? 'Loading...' : _userName.trim().split(' ').first,
+                        style: TextStyle(
+                          color: textLight,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textScaler: TextScaler.noScaling,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _isLoading ? 'Loading...' : _userName,
-                    style: TextStyle(
-                      color: textLight,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
+          const SizedBox(width: 16),
           // Right side buttons
           Row(
             children: [
@@ -750,6 +905,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // AI Advisor Button
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FinancialAdvisorScreen(),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: cardSurfaceColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF00d4ff).withOpacity(0.4)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00d4ff).withOpacity(0.15),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.psychology,
+                    color: Color(0xFF00d4ff),
+                    size: 24,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1167,6 +1355,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             );
           },
         ),
+        // Added Calendar Sync Predictor Button
+        _buildActionButton(
+          icon: Icons.calendar_month_outlined,
+          label: 'Calendar',
+          color: accentPink,
+          onTap: () {
+            Navigator.push(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) =>
+                    const CalendarSyncScreen(),
+                transitionsBuilder:
+                    (context, animation, secondaryAnimation, child) {
+                      return child;
+                    },
+                transitionDuration: const Duration(milliseconds: 0),
+                barrierColor: backgroundColor,
+              ),
+            ).then((_) => _loadBudgetData());
+          },
+        ),
       ],
     );
   }
@@ -1251,7 +1460,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   Container(
                     width: 6,
                     height: 6,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: Color(0xFFef4444),
                       shape: BoxShape.circle,
                     ),
@@ -1276,85 +1485,43 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         const SizedBox(height: 20),
         SizedBox(
           height: 240,
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('receipts')
-                .where('userId', isEqualTo: user.uid)
-                .orderBy('timestamp', descending: true)
-                .limit(5)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
+          child: _receiptsLoading && _cachedReceipts.isEmpty
+              ? const Center(
                   child: CircularProgressIndicator(color: primary),
-                );
-              }
-
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.receipt_long,
-                        size: 48,
-                        color: textGrey.withOpacity(0.5),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No recent activity',
-                        style: TextStyle(color: textGrey, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              final receipts = snapshot.data!.docs;
-
-              return ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: receipts.length,
-                itemBuilder: (context, index) {
-                  final receiptDoc = receipts[index];
-                  final receiptData = receiptDoc.data() as Map<String, dynamic>;
-
-                  return FutureBuilder<Map<String, dynamic>>(
-                    future: _getReceiptActivityData(receiptDoc.id, receiptData),
-                    builder: (context, activitySnapshot) {
-                      if (!activitySnapshot.hasData) {
-                        return Container(
-                          width: 144,
-                          margin: const EdgeInsets.only(right: 16),
-                          child: const Center(
-                            child: CircularProgressIndicator(
-                              color: primary,
-                              strokeWidth: 2,
-                            ),
+                )
+              : (_cachedReceipts.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.receipt_long,
+                            size: 48,
+                            color: textGrey.withOpacity(0.5),
                           ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No recent activity',
+                            style: TextStyle(color: textGrey, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _cachedReceipts.length,
+                      itemBuilder: (context, index) {
+                        final receipt = _cachedReceipts[index];
+                        final totalAmount = (receipt['totalAmount'] ?? 0.0) as double;
+
+                        return _buildActivityCard(
+                          imageUrl: receipt['imageUrl'],
+                          amount: '$_currencySymbol${totalAmount.toStringAsFixed(2)}',
+                          merchant: receipt['merchantName'] ?? 'Store',
+                          showBadge: receipt['isToday'] ?? false,
                         );
-                      }
-
-                      final activityData = activitySnapshot.data!;
-                      final merchantName =
-                          activityData['merchantName'] ?? 'Store';
-                      final totalAmount = activityData['totalAmount'] ?? 0.0;
-                      final imageUrl = activityData['imageUrl'];
-                      final isToday = activityData['isToday'] ?? false;
-
-                      return _buildActivityCard(
-                        imageUrl: imageUrl,
-                        amount:
-                            '$_currencySymbol${totalAmount.toStringAsFixed(2)}',
-                        merchant: merchantName,
-                        showBadge: isToday,
-                      );
-                    },
-                  );
-                },
-              );
-            },
-          ),
+                      },
+                    )),
         ),
       ],
     );
@@ -1622,79 +1789,62 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(height: 16),
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('todos')
-              .where('userId', isEqualTo: user.uid)
-              .where('isCompleted', isEqualTo: false)
-              .orderBy('dueDate')
-              .limit(3)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(color: primary),
-              );
-            }
-
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'Error loading tasks',
-                  style: TextStyle(color: textGrey),
-                ),
-              );
-            }
-
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.check_circle_outline,
-                        size: 48,
-                        color: textGrey,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No upcoming tasks',
-                        style: TextStyle(
-                          color: textGrey,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tap "Todo" to add a new task',
-                        style: TextStyle(
-                          color: textGrey.withOpacity(0.6),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+        if (_todosLoading && _cachedTodos.isEmpty)
+          const Center(
+            child: CircularProgressIndicator(color: primary),
+          )
+        else if (_cachedTodos.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderColor),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 48,
+                    color: textGrey,
                   ),
-                ),
-              );
-            }
+                  const SizedBox(height: 12),
+                  Text(
+                    'No upcoming tasks',
+                    style: TextStyle(
+                      color: textGrey,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tap "Todo" to add a new task',
+                    style: TextStyle(
+                      color: textGrey.withOpacity(0.6),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Column(
+            children: _cachedTodos.map((todo) {
+              final title = todo['title'] ?? 'Untitled Task';
+              final priority = todo['priority'] ?? 'Medium';
+              final isCompleted = todo['isCompleted'] ?? false;
+              final todoId = todo['id'];
 
-            return Column(
-              children: snapshot.data!.docs.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final title = data['title'] ?? 'Untitled Task';
-                final dueDate = (data['dueDate'] as Timestamp).toDate();
-                final priority = data['priority'] ?? 'None';
-                final todoId = data['todoId'];
-                final isCompleted = data['isCompleted'] ?? false;
+              // Format due date from millis
+              String dueDateText = 'No Date';
+              bool showUrgent = false;
 
-                // Format due date
+              final dueDateMillis = todo['dueDateMillis'] as int?;
+              if (dueDateMillis != null) {
+                final dueDate = DateTime.fromMillisecondsSinceEpoch(dueDateMillis);
                 final now = DateTime.now();
                 final today = DateTime(now.year, now.month, now.day);
                 final tomorrow = today.add(const Duration(days: 1));
@@ -1703,9 +1853,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   dueDate.month,
                   dueDate.day,
                 );
-
-                String dueDateText;
-                bool showUrgent = false;
 
                 if (taskDate == today) {
                   dueDateText = 'Due Today';
@@ -1721,110 +1868,106 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   dueDateText =
                       '${dueDate.month}/${dueDate.day}/${dueDate.year}';
                 }
+              }
 
-                // Determine gradient colors based on priority
-                List<Color> gradientColors;
-                switch (priority) {
-                  case 'High':
-                    gradientColors = [accentPink, const Color(0xFFbe185d)];
-                    break;
-                  case 'Medium':
-                    gradientColors = [
-                      const Color(0xFFf59e0b),
-                      const Color(0xFFd97706),
-                    ];
-                    break;
-                  case 'Low':
-                    gradientColors = [accentTeal, const Color(0xFF0d9488)];
-                    break;
-                  default:
-                    gradientColors = [primary, const Color(0xFF2563eb)];
-                }
+              // Determine gradient colors based on priority
+              List<Color> gradientColors;
+              switch (priority) {
+                case 'High':
+                  gradientColors = [accentPink, const Color(0xFFbe185d)];
+                  break;
+                case 'Medium':
+                  gradientColors = [
+                    const Color(0xFFf59e0b),
+                    const Color(0xFFd97706),
+                  ];
+                  break;
+                case 'Low':
+                  gradientColors = [accentTeal, const Color(0xFF0d9488)];
+                  break;
+                default:
+                  gradientColors = [primary, const Color(0xFF2563eb)];
+              }
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _buildTaskItem(
-                    title: title,
-                    subtitle: dueDateText,
-                    gradientColors: gradientColors,
-                    showUrgent: showUrgent,
-                    isCompleted: isCompleted,
-                    onTap: () {
-                      // Navigate to todo details or dashboard
-                      Navigator.push(
-                        context,
-                        PageRouteBuilder(
-                          pageBuilder:
-                              (context, animation, secondaryAnimation) =>
-                                  const TodoDashboard(),
-                          transitionsBuilder:
-                              (context, animation, secondaryAnimation, child) {
-                                return child;
-                              },
-                          transitionDuration: const Duration(milliseconds: 0),
-                          barrierColor: backgroundColor,
-                        ),
-                      ).then((_) {
-                        // Reschedule notifications when returning
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildTaskItem(
+                  title: title,
+                  subtitle: dueDateText,
+                  gradientColors: gradientColors,
+                  showUrgent: showUrgent,
+                  isCompleted: isCompleted,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder:
+                            (context, animation, secondaryAnimation) =>
+                                const TodoDashboard(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                          return child;
+                        },
+                        transitionDuration: const Duration(milliseconds: 0),
+                        barrierColor: backgroundColor,
+                      ),
+                    ).then((_) {
+                      // Reschedule notifications when returning
+                      _notificationService.scheduleTodoNotifications(
+                        user.uid,
+                      );
+                    });
+                  },
+                  onCheckboxChanged: (bool? value) async {
+                    if (value != null && todoId != null) {
+                      try {
+                        await FirebaseFirestore.instance
+                            .collection('todos')
+                            .doc(todoId)
+                            .update({'isCompleted': value});
+
                         _notificationService.scheduleTodoNotifications(
                           user.uid,
                         );
-                      });
-                    },
-                    onCheckboxChanged: (bool? value) async {
-                      if (value != null) {
-                        try {
-                          await FirebaseFirestore.instance
-                              .collection('todos')
-                              .doc(doc.id)
-                              .update({'isCompleted': value});
 
-                          // Reschedule notifications after completing/uncompleting a task
-                          _notificationService.scheduleTodoNotifications(
-                            user.uid,
+                        if (value && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Row(
+                                children: const [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.white,
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text('Task completed!'),
+                                ],
+                              ),
+                              backgroundColor: accentTeal,
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
                           );
-
-                          // Show completion feedback
-                          if (value && mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Row(
-                                  children: const [
-                                    Icon(
-                                      Icons.check_circle,
-                                      color: Colors.white,
-                                    ),
-                                    SizedBox(width: 12),
-                                    Text('Task completed!'),
-                                  ],
-                                ),
-                                backgroundColor: accentTeal,
-                                behavior: SnackBarBehavior.floating,
-                                duration: const Duration(seconds: 2),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error updating task: $e'),
-                                backgroundColor: accentPink,
-                              ),
-                            );
-                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error updating task: $e'),
+                              backgroundColor: accentPink,
+                            ),
+                          );
                         }
                       }
-                    },
-                  ),
-                );
-              }).toList(),
-            );
-          },
-        ),
+                    }
+                  },
+                ),
+              );
+            }).toList(),
+          ),
       ],
     );
   }
@@ -1973,27 +2116,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _buildNavItem(IconData icon, int index) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textGrey = isDark ? textGreyDark : textGreyLight;
-    final isSelected = _selectedIndex == index;
+    final isSelected = index == 0; // Home is always index 0 and selected on this page
     return GestureDetector(
       onTap: () {
-        if (index == 1) {
-          // Navigate to Analytics page
-          Navigator.push(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) =>
-                  const AnalyticsPage(),
-              transitionDuration: const Duration(milliseconds: 300),
-              reverseTransitionDuration: const Duration(milliseconds: 300),
-              transitionsBuilder:
-                  (context, animation, secondaryAnimation, child) {
-                    return FadeTransition(opacity: animation, child: child);
-                  },
-            ),
-          );
-        } else {
-          setState(() => _selectedIndex = index);
+        if (index == 0) return; // Already on Home page
+
+        final Widget nextPage;
+        switch (index) {
+          case 1:
+            nextPage = const AnalyticsPage();
+            break;
+          case 3:
+            nextPage = const ProfilePage();
+            break;
+          case 4:
+            nextPage = const SettingsPage();
+            break;
+          default:
+            return;
         }
+
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => nextPage,
+            transitionDuration: const Duration(milliseconds: 300),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
       },
       child: Container(
         width: 48,
@@ -2025,10 +2178,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ],
       ),
       child: IconButton(
-        icon: Icon(Icons.qr_code_scanner, color: Colors.white, size: 32),
+        icon: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 32),
         onPressed: () {
-          // Navigate to receipts page
-          setState(() => _selectedIndex = 2);
+          // Push receipts page directly as a separate route
+          Navigator.pushNamed(context, '/receipts');
         },
       ),
     );

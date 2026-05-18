@@ -8,6 +8,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:spendwisesyncapp/screen/budget/receiptdetailscreen.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:spendwisesyncapp/services/receipt_scanner_service.dart';
+import 'package:spendwisesyncapp/services/todo_service.dart';
 
 // App Colors - DARK MODE (moved to top level so they're accessible by all classes)
 const Color backgroundDark = Color(0xFF0f1419);
@@ -71,6 +74,37 @@ class _AddReceiptPageState extends State<AddReceiptPage> {
     // Theme is controlled by main.dart
   }
 
+  Future<Map<String, dynamic>> _performGoogleAIScan(Uint8List fileBytes, String mimeType) async {
+    try {
+      setState(() {
+        _processingProgress = 0.2;
+      });
+
+      setState(() {
+        _processingProgress = 0.5;
+      });
+
+      final extractedData = await ReceiptScannerService.scanReceipt(fileBytes, mimeType);
+
+      setState(() {
+        _processingProgress = 1.0;
+      });
+
+      return extractedData;
+    } catch (e) {
+      print('Error performing Google AI scan: $e');
+      return {
+        'merchantName': 'Scanned Store',
+        'date': DateTime.now().toString().split(' ')[0],
+        'taxAmount': 0.0,
+        'subtotal': 0.0,
+        'totalAmount': 0.0,
+        'items': [],
+        'rawText': 'Error: $e',
+      };
+    }
+  }
+
   Future<void> _handleCameraUpload() async {
     try {
       final XFile? image = await _imagePicker.pickImage(
@@ -86,8 +120,16 @@ class _AddReceiptPageState extends State<AddReceiptPage> {
           _processingProgress = 0.0;
         });
 
-        // Perform actual OCR processing
-        final extractedData = await _performOCR(image.path);
+        final Uint8List imageBytes = await image.readAsBytes();
+        String mimeType = 'image/jpeg';
+        if (image.name.toLowerCase().endsWith('.png')) {
+          mimeType = 'image/png';
+        } else if (image.name.toLowerCase().endsWith('.webp')) {
+          mimeType = 'image/webp';
+        }
+
+        // Perform actual Google AI Scan
+        final extractedData = await _performGoogleAIScan(imageBytes, mimeType);
 
         setState(() {
           _isProcessing = false;
@@ -129,8 +171,16 @@ class _AddReceiptPageState extends State<AddReceiptPage> {
           _processingProgress = 0.0;
         });
 
-        // Perform actual OCR processing
-        final extractedData = await _performOCR(image.path);
+        final Uint8List imageBytes = await image.readAsBytes();
+        String mimeType = 'image/jpeg';
+        if (image.name.toLowerCase().endsWith('.png')) {
+          mimeType = 'image/png';
+        } else if (image.name.toLowerCase().endsWith('.webp')) {
+          mimeType = 'image/webp';
+        }
+
+        // Perform actual Google AI Scan
+        final extractedData = await _performGoogleAIScan(imageBytes, mimeType);
 
         setState(() {
           _isProcessing = false;
@@ -165,31 +215,50 @@ class _AddReceiptPageState extends State<AddReceiptPage> {
         allowedExtensions: ['pdf'],
       );
 
-      if (result != null && result.files.single.path != null) {
+      if (result != null) {
         final file = result.files.single;
+        Uint8List? fileBytes;
 
-        // Note: PDF OCR would require additional processing (convert PDF to image first)
-        // For now, go directly to manual correction
-        if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ManualCorrectionPage(
-                imagePath: file.path!,
-                fileName: file.name,
-                extractedData: {
-                  'merchantName': '',
-                  'totalAmount': 0.0,
-                  'items': [],
-                  'rawText': '',
-                },
+        // Support both web and mobile
+        if (file.bytes != null) {
+          fileBytes = file.bytes;
+        } else if (file.path != null) {
+          fileBytes = await File(file.path!).readAsBytes();
+        }
+
+        if (fileBytes != null) {
+          setState(() {
+            _isProcessing = true;
+            _processingFileName = file.name;
+            _processingProgress = 0.0;
+          });
+
+          // Perform Google AI PDF Scan
+          final extractedData = await _performGoogleAIScan(fileBytes, 'application/pdf');
+
+          setState(() {
+            _isProcessing = false;
+          });
+
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ManualCorrectionPage(
+                  imagePath: file.path ?? '',
+                  fileName: file.name,
+                  extractedData: extractedData,
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
       }
     } catch (e) {
       _showErrorSnackBar('Error accessing files: $e');
+      setState(() {
+        _isProcessing = false;
+      });
     }
   }
 
@@ -1060,6 +1129,7 @@ class _ManualCorrectionPageState extends State<ManualCorrectionPage> {
   final _categoryController = TextEditingController();
 
   List<Map<String, dynamic>> _items = [];
+  List<bool> _createTodo = [];
   bool _isSaving = false;
 
   @override
@@ -1069,12 +1139,16 @@ class _ManualCorrectionPageState extends State<ManualCorrectionPage> {
     // Pre-fill with extracted data if available
     if (widget.extractedData != null) {
       _merchantController.text = widget.extractedData!['merchantName'] ?? '';
+      if (widget.extractedData!['category'] != null) {
+        _categoryController.text = widget.extractedData!['category'] ?? '';
+      }
 
       // Pre-populate items if extracted
       if (widget.extractedData!['items'] != null) {
         _items = List<Map<String, dynamic>>.from(
           widget.extractedData!['items'],
         );
+        _createTodo = List<bool>.generate(_items.length, (index) => false);
       }
     }
   }
@@ -1094,10 +1168,32 @@ class _ManualCorrectionPageState extends State<ManualCorrectionPage> {
         onAdd: (item) {
           setState(() {
             _items.add(item);
+            _createTodo.add(false);
           });
         },
       ),
     );
+  }
+
+  String _mapToTodoCategory(String? receiptCategory) {
+    if (receiptCategory == null) return 'Personal';
+    final cat = receiptCategory.toLowerCase();
+    if (cat.contains('home') || cat.contains('house') || cat.contains('furniture')) {
+      return 'Home';
+    }
+    if (cat.contains('health') || cat.contains('medic') || cat.contains('pharm')) {
+      return 'Health';
+    }
+    if (cat.contains('finance') || cat.contains('bill') || cat.contains('tax') || cat.contains('bank')) {
+      return 'Finance';
+    }
+    if (cat.contains('work') || cat.contains('office') || cat.contains('job')) {
+      return 'Work';
+    }
+    if (cat.contains('grocer') || cat.contains('food') || cat.contains('market') || cat.contains('errand') || cat.contains('shop')) {
+      return 'Errands';
+    }
+    return 'Personal';
   }
 
   Future<void> _saveReceipt() async {
@@ -1136,7 +1232,8 @@ class _ManualCorrectionPageState extends State<ManualCorrectionPage> {
 
       // Add items to subcollection
       final batch = FirebaseFirestore.instance.batch();
-      for (var item in _items) {
+      for (int i = 0; i < _items.length; i++) {
+        final item = _items[i];
         // Auto-generate item ID
         final itemRef = receiptRef.collection('receipt_items').doc();
         final itemId = itemRef.id;
@@ -1149,6 +1246,21 @@ class _ManualCorrectionPageState extends State<ManualCorrectionPage> {
           'totalPrice': item['totalPrice'],
           'category': item['category'] ?? 'Other',
         });
+
+        // If toggled for checklist creation, automatically add to Todo collection
+        if (_createTodo[i]) {
+          final todoCategory = _mapToTodoCategory(item['category']);
+          await TodoService().addTodo(
+            title: "Task: ${item['name']}",
+            description: "Scanned item from receipt at ${_merchantController.text.trim()}.",
+            linkedReceiptItemId: itemId,
+            dueDate: DateTime.now().add(const Duration(days: 1)), // Due tomorrow by default
+            dueTime: "12:00 PM",
+            priority: "Medium",
+            energyLevel: "Medium energy",
+            category: todoCategory,
+          );
+        }
       }
 
       await batch.commit();
@@ -1156,7 +1268,7 @@ class _ManualCorrectionPageState extends State<ManualCorrectionPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Receipt saved successfully!'),
+            content: Text('Receipt and checked checklist items saved successfully!'),
             backgroundColor: greenSuccess,
           ),
         );
@@ -1268,30 +1380,57 @@ class _ManualCorrectionPageState extends State<ManualCorrectionPage> {
                 ],
               ),
               const SizedBox(height: 16),
-              ..._items
-                  .map(
-                    (item) => Card(
+              if (_items.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Text(
+                      'No items extracted yet.',
+                      style: TextStyle(color: textGrey),
+                    ),
+                  ),
+                )
+              else
+                ...Iterable.generate(_items.length).map(
+                  (index) {
+                    final item = _items[index];
+                    final isChecked = _createTodo[index];
+                    return Card(
                       color: cardSurfaceColor,
                       child: ListTile(
+                        leading: IconButton(
+                          icon: Icon(
+                            isChecked
+                                ? Icons.playlist_add_check_circle
+                                : Icons.playlist_add_circle_outlined,
+                            color: isChecked ? primary : textGrey,
+                            size: 28,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _createTodo[index] = !_createTodo[index];
+                            });
+                          },
+                        ),
                         title: Text(
-                          item['name'],
+                          item['name'] ?? 'Item',
                           style: TextStyle(color: textLight),
                         ),
                         subtitle: Text(
-                          'Qty: ${item['quantity']} × \$${item['unitPrice']}',
+                          'Qty: ${item['quantity']} × \$${(item['unitPrice'] ?? 0.0).toStringAsFixed(2)} [${item['category'] ?? 'Other'}]',
                           style: TextStyle(color: textGrey),
                         ),
                         trailing: Text(
-                          '\$${item['totalPrice']}',
+                          '\$${(item['totalPrice'] ?? 0.0).toStringAsFixed(2)}',
                           style: TextStyle(
                             color: textLight,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                    ),
-                  )
-                  .toList(),
+                    );
+                  },
+                ).toList(),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
