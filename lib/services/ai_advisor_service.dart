@@ -6,7 +6,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AiAdvisorService {
   /// Fetches real-time budget, deduction, and receipt logs from Firestore,
   /// compiles them into a system instruction, and sends the conversation to Gemini.
-  static Future<String> getFinancialAdvice(String userMessage, List<Content> chatHistory) async {
+  static Future<String> getFinancialAdvice(
+    String userMessage,
+    List<Content> chatHistory,
+  ) async {
     try {
       final apiKey = dotenv.env['GEMINI_API_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
@@ -32,26 +35,36 @@ class AiAdvisorService {
       double totalDeductions = 0;
       List<String> deductionsList = [];
 
-      final dailyDoc = await FirebaseFirestore.instance.collection('budgets').doc('${userId}_daily').get();
+      final dailyDoc = await FirebaseFirestore.instance
+          .collection('budgets')
+          .doc('${userId}_daily')
+          .get();
       if (dailyDoc.exists) {
         dailyLimit = (dailyDoc.data()?['limitAmount'] ?? 0.0).toDouble();
         dailySpent = (dailyDoc.data()?['amountSpent'] ?? 0.0).toDouble();
       }
 
-      final weeklyDoc = await FirebaseFirestore.instance.collection('budgets').doc('${userId}_weekly').get();
+      final weeklyDoc = await FirebaseFirestore.instance
+          .collection('budgets')
+          .doc('${userId}_weekly')
+          .get();
       if (weeklyDoc.exists) {
         weeklyLimit = (weeklyDoc.data()?['limitAmount'] ?? 0.0).toDouble();
         weeklySpent = (weeklyDoc.data()?['amountSpent'] ?? 0.0).toDouble();
       }
 
-      final monthlyDoc = await FirebaseFirestore.instance.collection('budgets').doc('${userId}_monthly').get();
+      final monthlyDoc = await FirebaseFirestore.instance
+          .collection('budgets')
+          .doc('${userId}_monthly')
+          .get();
       if (monthlyDoc.exists) {
         monthlyLimit = (monthlyDoc.data()?['limitAmount'] ?? 0.0).toDouble();
         monthlySpent = (monthlyDoc.data()?['amountSpent'] ?? 0.0).toDouble();
         payAmount = (monthlyDoc.data()?['payAmount'] ?? 0.0).toDouble();
         bankAmount = (monthlyDoc.data()?['bankAmount'] ?? 0.0).toDouble();
         cashAmount = (monthlyDoc.data()?['cashAmount'] ?? 0.0).toDouble();
-        totalDeductions = (monthlyDoc.data()?['totalDeductions'] ?? 0.0).toDouble();
+        totalDeductions = (monthlyDoc.data()?['totalDeductions'] ?? 0.0)
+            .toDouble();
         final deductions = monthlyDoc.data()?['monthlyDeductions'] as List?;
         if (deductions != null) {
           for (var item in deductions) {
@@ -72,8 +85,12 @@ class AiAdvisorService {
       docs.sort((a, b) {
         final aData = a.data() as Map<String, dynamic>?;
         final bData = b.data() as Map<String, dynamic>?;
-        final aTime = aData?['createdAt'] as Timestamp? ?? aData?['timestamp'] as Timestamp?;
-        final bTime = bData?['createdAt'] as Timestamp? ?? bData?['timestamp'] as Timestamp?;
+        final aTime =
+            aData?['createdAt'] as Timestamp? ??
+            aData?['timestamp'] as Timestamp?;
+        final bTime =
+            bData?['createdAt'] as Timestamp? ??
+            bData?['timestamp'] as Timestamp?;
         if (aTime == null && bTime == null) return 0;
         if (aTime == null) return 1;
         if (bTime == null) return -1;
@@ -94,7 +111,9 @@ class AiAdvisorService {
               : "Unknown Date";
 
           // Fetch items for this receipt
-          final itemsSnapshot = await doc.reference.collection('receipt_items').get();
+          final itemsSnapshot = await doc.reference
+              .collection('receipt_items')
+              .get();
           double receiptTotal = 0;
           List<String> itemsList = [];
           for (var itemDoc in itemsSnapshot.docs) {
@@ -104,10 +123,14 @@ class AiAdvisorService {
             final price = (itemData['totalPrice'] ?? 0.0).toDouble();
             final cat = itemData['category'] ?? 'Other';
             receiptTotal += price;
-            itemsList.add("- $name ($qty) - \$${price.toStringAsFixed(2)} [$cat]");
+            itemsList.add(
+              "- $name ($qty) - \$${price.toStringAsFixed(2)} [$cat]",
+            );
           }
 
-          receiptsSummary.writeln("🧾 Receipt from $merchant on $dateStr (Total: \$${receiptTotal.toStringAsFixed(2)}):");
+          receiptsSummary.writeln(
+            "🧾 Receipt from $merchant on $dateStr (Total: \$${receiptTotal.toStringAsFixed(2)}):",
+          );
           for (var itemLine in itemsList) {
             receiptsSummary.writeln("  $itemLine");
           }
@@ -144,9 +167,11 @@ class AiAdvisorService {
               ? "${timestamp.toDate().year}-${timestamp.toDate().month}-${timestamp.toDate().day}"
               : "Unknown Date";
           final projectedCost = (data['projectedCost'] ?? 0.0).toDouble();
-          
+
           if (projectedCost > 0) {
-            calendarSummary.writeln("- 📅 $title on $dateStr (Projected spend: +\$${projectedCost.toStringAsFixed(2)})");
+            calendarSummary.writeln(
+              "- 📅 $title on $dateStr (Projected spend: +\$${projectedCost.toStringAsFixed(2)})",
+            );
           } else {
             calendarSummary.writeln("- 📅 $title on $dateStr (Standard entry)");
           }
@@ -154,7 +179,8 @@ class AiAdvisorService {
       }
 
       // 4. Setup Gemini Model with contextual system prompt
-      final systemPrompt = '''
+      final systemPrompt =
+          '''
 You are "SpendWise Advisor", a friendly, certified financial planner chatbot integrated into the SpendWise Sync app.
 Your job is to provide highly customized, actionable, and smart financial advice, budget reviews, and saving tips based on the user's actual financial data provided below:
 
@@ -179,15 +205,16 @@ ${receiptsSummary.toString()}
 Strict Guidelines for your response:
 1. Be highly encouraging, empathetic, and professional.
 2. Reference their actual data (e.g., if their monthly spent is close to limit, warn them gently; if they spend a lot on specific categories like Groceries, suggest meal planning).
-3. Keep responses relatively concise, formatted beautifully in markdown, using bullet points and bolding for readability.
+3. Keep responses concise and easy to read using plain text only; do not use markdown headings, bullets, or list markers (#, *).
 4. Never give dangerous investment or trading advice. Focus on budgeting, saving, and smart spending.
 5. If the user asks general financial questions, relate them back to their current profile if helpful.
 6. Actively analyze their upcoming calendar events. If they have high-spend events (like weddings, flights, or vacations), proactively warn them about scaling their budget limits (e.g. advise adjusting daily/weekly caps to save up for these events ahead of time).
+7. Do not include raw markdown syntax such as # or * in your response.
 ''';
 
       print('Initializing Gemini chat...');
       final model = GenerativeModel(
-        model: 'gemini-1.5-flash',
+        model: 'gemini-flash-latest',
         apiKey: apiKey,
         systemInstruction: Content.system(systemPrompt),
       );
@@ -195,9 +222,9 @@ Strict Guidelines for your response:
       // We start a chat session with historical logs
       final chat = model.startChat(history: chatHistory);
       final response = await chat.sendMessage(Content.text(userMessage));
-      final responseText = response.text;
+      final responseText = _sanitizeAiResponse(response.text ?? '');
 
-      if (responseText == null || responseText.isEmpty) {
+      if (responseText.isEmpty) {
         throw Exception('Empty response from Google AI Advisor');
       }
 
@@ -208,8 +235,24 @@ Strict Guidelines for your response:
     }
   }
 
+  static String _sanitizeAiResponse(String text) {
+    final cleanedLines = text
+        .split('\n')
+        .map((line) => line.replaceFirst(RegExp(r'^[#\*\s]+'), ''))
+        .toList();
+
+    final sanitized = cleanedLines
+        .join('\n')
+        .replaceAll('#', '')
+        .replaceAll('*', '');
+    return sanitized.trim();
+  }
+
   /// Provides support and app navigation guidance based on the app's features.
-  static Future<String> getSupportAdvice(String userMessage, List<Content> chatHistory) async {
+  static Future<String> getSupportAdvice(
+    String userMessage,
+    List<Content> chatHistory,
+  ) async {
     try {
       final apiKey = dotenv.env['GEMINI_API_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
@@ -222,7 +265,8 @@ Strict Guidelines for your response:
         userName = user.displayName ?? "User";
       }
 
-      final systemPrompt = '''
+      final systemPrompt =
+          '''
 You are the "SpendWise Support Agent", a friendly, highly knowledgeable AI assistant embedded within the SpendWise Sync app.
 Your job is to help users navigate the app, understand its features, and troubleshoot common issues.
 
@@ -237,22 +281,23 @@ SPENDWISE SYNC APP KNOWLEDGE BASE:
 Strict Guidelines for your response:
 1. Address the user by name if possible ($userName).
 2. Be incredibly friendly, concise, and helpful.
-3. Use markdown (bullet points, bold text) to make your instructions easy to read.
+3. Keep responses clear and plain text only; do not use markdown headings, bullets, or list markers (#, *).
 4. Do NOT attempt to give financial advice or ask for their bank details. You are purely for app support and navigation.
 5. If they ask how to do something, provide step-by-step instructions based on the knowledge base above.
+6. Do not include raw markdown syntax such as # or * in your response.
 ''';
 
       final model = GenerativeModel(
-        model: 'gemini-1.5-flash',
+        model: 'gemini-flash-latest',
         apiKey: apiKey,
         systemInstruction: Content.system(systemPrompt),
       );
 
       final chat = model.startChat(history: chatHistory);
       final response = await chat.sendMessage(Content.text(userMessage));
-      final responseText = response.text;
+      final responseText = _sanitizeAiResponse(response.text ?? '');
 
-      if (responseText == null || responseText.isEmpty) {
+      if (responseText.isEmpty) {
         throw Exception('Empty response from Google AI Support');
       }
 

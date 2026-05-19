@@ -5,7 +5,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ReceiptScannerService {
   /// Scans receipt image or PDF bytes and returns a structured Map of extracted data.
-  static Future<Map<String, dynamic>> scanReceipt(Uint8List fileBytes, String mimeType) async {
+  static Future<Map<String, dynamic>> scanReceipt(
+    Uint8List fileBytes,
+    String mimeType,
+  ) async {
     try {
       final apiKey = dotenv.env['GEMINI_API_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
@@ -14,7 +17,7 @@ class ReceiptScannerService {
 
       print('Initializing Gemini model for receipt scan...');
       final model = GenerativeModel(
-        model: 'gemini-1.5-flash',
+        model: 'gemini-flash-latest',
         apiKey: apiKey,
         generationConfig: GenerationConfig(
           responseMimeType: 'application/json',
@@ -57,10 +60,7 @@ Output the extracted details STRICTLY as a raw JSON object matching the followin
 
       print('Sending file bytes to Gemini model with MIME type: $mimeType');
       final content = [
-        Content.multi([
-          DataPart(mimeType, fileBytes),
-          TextPart(prompt),
-        ])
+        Content.multi([DataPart(mimeType, fileBytes), TextPart(prompt)]),
       ];
 
       final response = await model.generateContent(content);
@@ -71,23 +71,26 @@ Output the extracted details STRICTLY as a raw JSON object matching the followin
       }
 
       print('Google AI Raw Response: $responseText');
-      final Map<String, dynamic> parsedJson = jsonDecode(responseText.trim());
+      final String jsonResponse = _extractJsonFromResponse(responseText);
+      final Map<String, dynamic> parsedJson = jsonDecode(jsonResponse.trim());
 
       // Ensure standard format of returned keys
       return {
         'merchantName': parsedJson['merchantName'] ?? '',
         'date': parsedJson['date'] ?? DateTime.now().toString().split(' ')[0],
-        'taxAmount': (parsedJson['taxAmount'] ?? 0.0).toDouble(),
-        'subtotal': (parsedJson['subtotal'] ?? 0.0).toDouble(),
-        'totalAmount': (parsedJson['totalAmount'] ?? 0.0).toDouble(),
+        'taxAmount': _toDouble(parsedJson['taxAmount']),
+        'subtotal': _toDouble(parsedJson['subtotal']),
+        'totalAmount': _toDouble(parsedJson['totalAmount']),
         'items': List<Map<String, dynamic>>.from(
-          (parsedJson['items'] ?? []).map((item) => {
-            'name': item['name'] ?? '',
-            'quantity': item['quantity'] ?? 1,
-            'unitPrice': (item['unitPrice'] ?? 0.0).toDouble(),
-            'totalPrice': (item['totalPrice'] ?? 0.0).toDouble(),
-            'category': item['category'] ?? 'Other',
-          }),
+          (parsedJson['items'] ?? []).map(
+            (item) => {
+              'name': item['name'] ?? '',
+              'quantity': _toInt(item['quantity'] ?? 1),
+              'unitPrice': _toDouble(item['unitPrice']),
+              'totalPrice': _toDouble(item['totalPrice']),
+              'category': item['category'] ?? 'Other',
+            },
+          ),
         ),
         'rawText': responseText,
       };
@@ -104,5 +107,40 @@ Output the extracted details STRICTLY as a raw JSON object matching the followin
         'rawText': 'Failed to parse: $e',
       };
     }
+  }
+
+  static String _extractJsonFromResponse(String responseText) {
+    final trimmed = responseText.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      return trimmed;
+    }
+
+    final start = trimmed.indexOf('{');
+    final end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      return trimmed.substring(start, end + 1);
+    }
+
+    throw FormatException('Unable to locate a JSON object in the AI response.');
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value.replaceAll(',', '').trim()) ?? 0.0;
+    }
+    return 0.0;
+  }
+
+  static int _toInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      return int.tryParse(value.split('.').first.replaceAll(',', '').trim()) ??
+          0;
+    }
+    return 0;
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -26,40 +27,68 @@ void main() async {
   // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables
+  Object? startupError;
+  SharedPreferences? sharedPreferences;
+
   try {
-    await dotenv.load(fileName: ".env");
-  } catch (e) {
-    print("Error loading .env file: \$e");
+    // Load environment variables
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (e) {
+      debugPrint("Error loading .env file: $e");
+    }
+
+    // Initialize Firebase
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+    // Initialize Firebase App Check
+    try {
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+        appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+      );
+    } catch (e) {
+      debugPrint("Error activating App Check: $e");
+    }
+
+    // Initialize Notification Service
+    await NotificationService().initialize();
+
+    // Initialize SharedPreferences
+    sharedPreferences = await SharedPreferences.getInstance();
+  } catch (e, stackTrace) {
+    debugPrint("Critical startup error: $e\n$stackTrace");
+    startupError = e;
   }
 
-  // Initialize Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // Initialize Firebase App Check with Debug provider for development
-  try {
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug,
-      appleProvider: AppleProvider.debug,
+  if (startupError != null) {
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Text(
+                'Startup Error:\n\n$startupError',
+                style: const TextStyle(color: Colors.red, fontSize: 16),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
-  } catch (e) {
-    print("Error activating App Check: $e");
+  } else {
+    runApp(
+      ProviderScope(
+        overrides: [
+          if (sharedPreferences != null)
+            sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+        ],
+        child: const MyApp(),
+      ),
+    );
   }
-
-  // Initialize Notification Service
-  await NotificationService().initialize();
-
-  // Initialize SharedPreferences
-  final sharedPreferences = await SharedPreferences.getInstance();
-
-  runApp(
-    ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-      ],
-      child: const MyApp(),
-    ),
-  );
 }
 
 class MyApp extends ConsumerWidget {
