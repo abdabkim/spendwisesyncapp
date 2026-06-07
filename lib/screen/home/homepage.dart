@@ -164,6 +164,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         _dailySpent = prefs.getDouble('dailySpent') ?? 0;
         _dailyLimit = prefs.getDouble('dailyLimit') ?? 0;
         _currencySymbol = prefs.getString('currencySymbol') ?? '\$';
+        _selectedPeriod = prefs.getString('selectedPeriod') ?? 'daily';
         _cachedReceipts = cachedReceiptsList;
         _cachedTodos = cachedTodosList;
         _isLoading = false;
@@ -1178,8 +1179,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         const SizedBox(width: 6),
                         PopupMenuButton<String>(
                           initialValue: _selectedPeriod,
-                          onSelected: (value) =>
-                              setState(() => _selectedPeriod = value),
+                          onSelected: (value) {
+                            setState(() => _selectedPeriod = value);
+                            SharedPreferences.getInstance().then(
+                              (prefs) => prefs.setString('selectedPeriod', value),
+                            );
+                          },
                           color: cardColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),

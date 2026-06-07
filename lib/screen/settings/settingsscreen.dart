@@ -533,62 +533,64 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }) {
     return Column(
       children: [
-        ListTile(
-          leading: _buildIcon(Icons.palette_outlined),
-          title: Text(
-            'App Theme',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: textColor,
-            ),
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
-            child: MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                textScaler: TextScaler.noScaling,
-              ),
-              child: SegmentedButton<ThemeMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: ThemeMode.light,
-                    icon: Icon(Icons.light_mode, size: 16),
-                    label: Text(
-                      'Light',
-                      style: TextStyle(fontSize: 12),
-                      softWrap: false,
-                      overflow: TextOverflow.clip,
-                    ),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.dark,
-                    icon: Icon(Icons.dark_mode, size: 16),
-                    label: Text(
-                      'Dark',
-                      style: TextStyle(fontSize: 12),
-                      softWrap: false,
-                      overflow: TextOverflow.clip,
-                    ),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.system,
-                    icon: Icon(Icons.settings_system_daydream, size: 16),
-                    label: Text(
-                      'System',
-                      style: TextStyle(fontSize: 12),
-                      softWrap: false,
-                      overflow: TextOverflow.clip,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _buildIcon(Icons.palette_outlined),
+                  const SizedBox(width: 16),
+                  Text(
+                    'App Theme',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: textColor,
                     ),
                   ),
                 ],
-                selected: {currentMode},
-                onSelectionChanged: (Set<ThemeMode> newSelection) {
-                  onChanged(newSelection.first);
-                },
-                style: ButtonStyle(visualDensity: VisualDensity.compact),
               ),
-            ),
+              const SizedBox(height: 12),
+              MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.noScaling,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode, size: 16),
+                        label: Text('Light', style: TextStyle(fontSize: 12)),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode, size: 16),
+                        label: Text('Dark', style: TextStyle(fontSize: 12)),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.settings_brightness, size: 16),
+                        label: Text('System', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                    selected: {currentMode},
+                    onSelectionChanged: (Set<ThemeMode> newSelection) {
+                      onChanged(newSelection.first);
+                    },
+                    showSelectedIcon: false,
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
           ),
         ),
         _buildDivider(isDark),

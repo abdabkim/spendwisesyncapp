@@ -152,14 +152,15 @@ class FinancialReportService {
 
     // Calculations
     final totalDeductions = deductions.fold<double>(0, (acc, d) => acc + (d['amount'] as num).toDouble());
-    final totalAssets = bank + cash + pay;
-    final totalLiabilities = totalDeductions +
-        (dailyLimit - dailySpent).clamp(0, double.infinity) +
-        (weeklyLimit - weeklySpent).clamp(0, double.infinity) +
-        (monthlyLimit - monthlySpent).clamp(0, double.infinity);
+    // Assets = liquid money on hand only (pay is income, not a separate asset)
+    final totalAssets = bank + cash;
+    // Liabilities = only fixed obligated deductions (unspent budget limits are not liabilities)
+    final totalLiabilities = totalDeductions;
     final netEquity = totalAssets - totalLiabilities;
 
-    final totalSpentOutflows = dailySpent + weeklySpent + monthlySpent + totalDeductions;
+    // Variable spending uses the highest-period figure to avoid double-counting daily/weekly/monthly
+    final variableSpent = monthlySpent > 0 ? monthlySpent : (weeklySpent > 0 ? weeklySpent : dailySpent);
+    final totalSpentOutflows = variableSpent + totalDeductions;
     final netIncome = pay - totalSpentOutflows;
 
     final primaryNavy = PdfColor.fromHex('#1e3a8a');
@@ -269,12 +270,6 @@ class FinancialReportService {
                   ],
                 ),
                 pw.TableRow(
-                  children: [
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Monthly Income / Pay Amount', style: const pw.TextStyle(fontSize: 10))),
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(pay.toStringAsFixed(2), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.right)),
-                  ],
-                ),
-                pw.TableRow(
                   decoration: pw.BoxDecoration(color: zebraBg),
                   children: [
                     pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('TOTAL ASSETS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: primaryNavy))),
@@ -298,24 +293,8 @@ class FinancialReportService {
                 ),
                 pw.TableRow(
                   children: [
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Fixed Monthly Deductions', style: const pw.TextStyle(fontSize: 10))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Fixed Monthly Deductions (Total)', style: const pw.TextStyle(fontSize: 10))),
                     pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(totalDeductions.toStringAsFixed(2), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.right)),
-                  ],
-                ),
-                pw.TableRow(
-                  children: [
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Remaining Budget Allocation / Commitments', style: const pw.TextStyle(fontSize: 10))),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(6),
-                      child: pw.Text(
-                        ((dailyLimit - dailySpent).clamp(0, double.infinity) +
-                                (weeklyLimit - weeklySpent).clamp(0, double.infinity) +
-                                (monthlyLimit - monthlySpent).clamp(0, double.infinity))
-                            .toStringAsFixed(2),
-                        style: const pw.TextStyle(fontSize: 10),
-                        textAlign: pw.TextAlign.right,
-                      ),
-                    ),
                   ],
                 ),
                 pw.TableRow(
@@ -383,8 +362,8 @@ class FinancialReportService {
                 ),
                 pw.TableRow(
                   children: [
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Actual Variable Spending (Daily/Weekly/Monthly Spent)', style: const pw.TextStyle(fontSize: 10))),
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text((dailySpent + weeklySpent + monthlySpent).toStringAsFixed(2), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.right)),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Actual Variable Spending', style: const pw.TextStyle(fontSize: 10))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(variableSpent.toStringAsFixed(2), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.right)),
                   ],
                 ),
                 pw.TableRow(
@@ -648,11 +627,9 @@ class FinancialReportService {
     final receipts = data['receipts'] as List<Map<String, dynamic>>;
 
     // General Title
-    buffer.writeln('==================================================');
     buffer.writeln('SPENDWISE SYNC - COMPREHENSIVE FINANCIAL REPORT');
     buffer.writeln('Generated On,${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}');
     buffer.writeln('Account Owner,${data['email']}');
-    buffer.writeln('==================================================');
     buffer.writeln();
 
     // 1. Balance Sheet
@@ -660,31 +637,27 @@ class FinancialReportService {
     buffer.writeln('Asset Category,Amount ($currency)');
     buffer.writeln('Bank Account Balance,${bank.toStringAsFixed(2)}');
     buffer.writeln('Cash on Hand,${cash.toStringAsFixed(2)}');
-    buffer.writeln('Monthly Pay/Income,${pay.toStringAsFixed(2)}');
-    final totalAssets = bank + cash + pay;
+    final totalAssets = bank + cash;
     buffer.writeln('TOTAL ASSETS,${totalAssets.toStringAsFixed(2)}');
     buffer.writeln();
 
     final totalDeductions = deductions.fold<double>(0, (acc, d) => acc + (d['amount'] as num).toDouble());
-    final totalCommitments = (dailyLimit - dailySpent).clamp(0, double.infinity) +
-        (weeklyLimit - weeklySpent).clamp(0, double.infinity) +
-        (monthlyLimit - monthlySpent).clamp(0, double.infinity);
-    final totalLiabilities = totalDeductions + totalCommitments;
+    final totalLiabilities = totalDeductions;
 
     buffer.writeln('Liability Category,Amount ($currency)');
     buffer.writeln('Fixed Monthly Deductions,${totalDeductions.toStringAsFixed(2)}');
-    buffer.writeln('Outstanding Budget Commitments,${totalCommitments.toStringAsFixed(2)}');
     buffer.writeln('TOTAL LIABILITIES,${totalLiabilities.toStringAsFixed(2)}');
     buffer.writeln('NET LIQUID EQUITY / LIQUIDITY,${(totalAssets - totalLiabilities).toStringAsFixed(2)}');
     buffer.writeln();
 
     // 2. Income Statement
+    final variableSpent = monthlySpent > 0 ? monthlySpent : (weeklySpent > 0 ? weeklySpent : dailySpent);
     buffer.writeln('2. INCOME STATEMENT (P&L)');
     buffer.writeln('Line Item,Amount ($currency)');
     buffer.writeln('Total Monthly Revenue,${pay.toStringAsFixed(2)}');
     buffer.writeln('Fixed Monthly Deductions,${totalDeductions.toStringAsFixed(2)}');
-    buffer.writeln('Variable Spent (All Periods),${(dailySpent + weeklySpent + monthlySpent).toStringAsFixed(2)}');
-    final totalOutflows = dailySpent + weeklySpent + monthlySpent + totalDeductions;
+    buffer.writeln('Actual Variable Spending,${variableSpent.toStringAsFixed(2)}');
+    final totalOutflows = variableSpent + totalDeductions;
     buffer.writeln('TOTAL EXPENSES & OUTFLOWS,${totalOutflows.toStringAsFixed(2)}');
     buffer.writeln('NET FINANCIAL SURPLUS/DEFICIT,${(pay - totalOutflows).toStringAsFixed(2)}');
     buffer.writeln();
@@ -751,10 +724,11 @@ class FinancialReportService {
     final file = File('${tempDir.path}/SpendWise_Financial_Report_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv');
     await file.writeAsString(csvContent);
 
-    // Share using share_plus
-    await Share.shareXFiles(
-      [XFile(file.path, mimeType: 'text/csv')],
-      text: 'Here is my curated SpendWise Sync Financial Report & Balance Sheet.',
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path, mimeType: 'text/csv')],
+        text: 'Here is my curated SpendWise Sync Financial Report & Balance Sheet.',
+      ),
     );
   }
 }

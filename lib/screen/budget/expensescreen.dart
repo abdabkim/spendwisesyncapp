@@ -183,8 +183,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         .fold(0.0, (sum, item) => sum + (item['amount'] as num).toDouble());
   }
 
-  // What's left in the bank after deductions are paid
-  double get _netBankBalance => _bankAmount - _totalDeductions;
+  // What's left after pay comes in and deductions go out
+  double get _netBankBalance => _payAmount - _totalDeductions;
 
   double get _totalAvailableMoney => _netBankBalance;
 
@@ -357,8 +357,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               final value = double.tryParse(controller.text) ?? 0;
               setState(() {
                 if (type == 'pay') {
-                  _bankAmount = _bankAmount + value; // pay deposits into bank balance
-                  _payAmount = value; // track last pay for the PAY card display
+                  _bankAmount = value; // pay sets the bank balance
+                  _payAmount = value;
                 } else if (type == 'bank') {
                   _bankAmount = value;
                 } else {
