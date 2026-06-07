@@ -410,9 +410,229 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+  Future<void> _showDeleteAccountDialog() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? cardDark : Colors.white;
+    final textLight = isDark ? textLightDark : const Color(0xFF0f172a);
+    final textGrey = isDark ? textGreyDark : const Color(0xFF64748b);
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_forever, color: Colors.red, size: 26),
+            const SizedBox(width: 10),
+            Text(
+              'Delete Account',
+              style: TextStyle(
+                color: textLight,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'What would you like to delete?',
+              style: TextStyle(color: textGrey, fontSize: 14),
+            ),
+            const SizedBox(height: 20),
+            // Option 1 – Profile only
+            _buildDeleteOption(
+              icon: Icons.person_remove_outlined,
+              title: 'Profile Only',
+              subtitle: 'Removes your login account.\nYour saved data stays.',
+              color: Colors.orange,
+              textLight: textLight,
+              textGrey: textGrey,
+              cardColor: cardColor,
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmAndDelete(deleteData: false);
+              },
+            ),
+            const SizedBox(height: 12),
+            // Option 2 – Everything
+            _buildDeleteOption(
+              icon: Icons.delete_sweep_outlined,
+              title: 'Everything',
+              subtitle:
+                  'Permanently deletes your account\nand all your data. Cannot be undone.',
+              color: Colors.red,
+              textLight: textLight,
+              textGrey: textGrey,
+              cardColor: cardColor,
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmAndDelete(deleteData: true);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: textGrey)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeleteOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required Color textLight,
+    required Color textGrey,
+    required Color cardColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 26),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: textGrey, fontSize: 12, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: color.withOpacity(0.6), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmAndDelete({required bool deleteData}) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textGrey = isDark ? textGreyDark : const Color(0xFF64748b);
+    final label = deleteData ? 'Everything' : 'Profile Only';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? cardDark : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Are you sure?',
+          style: TextStyle(
+            color: isDark ? textLightDark : const Color(0xFF0f172a),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          deleteData
+              ? 'This will permanently erase your account and all associated data. This cannot be undone.'
+              : 'Your login account will be removed but your saved data will remain.',
+          style: TextStyle(color: textGrey, fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: TextStyle(color: textGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text('Delete $label'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final uid = user.uid;
+
+      if (deleteData) {
+        await _deleteAllUserData(uid);
+      }
+
+      await user.delete();
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login' && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please log out and log back in, then try again.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAllUserData(String uid) async {
+    final db = FirebaseFirestore.instance;
+    final collections = ['budgets', 'receipts', 'todos', 'calendar_events'];
+
+    for (final col in collections) {
+      final query = await db
+          .collection(col)
+          .where('userId', isEqualTo: uid)
+          .get();
+      final batch = db.batch();
+      for (final doc in query.docs) {
+        batch.delete(doc.reference);
+      }
+      if (query.docs.isNotEmpty) await batch.commit();
+    }
   }
 
   String _getPasswordChangeText() {
@@ -641,7 +861,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             width: double.infinity,
                             height: 60,
                             child: OutlinedButton(
-                              onPressed: _logout,
+                              onPressed: _showDeleteAccountDialog,
                               style: OutlinedButton.styleFrom(
                                 side: BorderSide(
                                   color: Colors.red.withOpacity(0.2),
@@ -654,10 +874,10 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: const [
-                                  Icon(Icons.logout, color: Colors.red),
+                                  Icon(Icons.delete_forever, color: Colors.red),
                                   SizedBox(width: 12),
                                   Text(
-                                    'Logout',
+                                    'Delete Account',
                                     style: TextStyle(
                                       color: Colors.red,
                                       fontSize: 18,

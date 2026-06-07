@@ -546,6 +546,7 @@ class _ReceiptDetailPageState extends State<ReceiptDetailPage> {
         ],
       ),
       body: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(

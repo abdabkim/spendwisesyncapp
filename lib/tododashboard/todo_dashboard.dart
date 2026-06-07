@@ -960,7 +960,7 @@ class _TodoDashboardState extends State<TodoDashboard> {
         }
 
         return SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final todo = todos[index];

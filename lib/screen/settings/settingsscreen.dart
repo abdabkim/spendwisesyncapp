@@ -545,41 +545,49 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
-            child: SegmentedButton<ThemeMode>(
-              segments: const [
-                ButtonSegment(
-                  value: ThemeMode.light,
-                  icon: Icon(Icons.light_mode, size: 16),
-                  label: Text(
-                    'Light',
-                    style: TextStyle(fontSize: 12),
-                    textScaler: TextScaler.noScaling,
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.noScaling,
+              ),
+              child: SegmentedButton<ThemeMode>(
+                segments: const [
+                  ButtonSegment(
+                    value: ThemeMode.light,
+                    icon: Icon(Icons.light_mode, size: 16),
+                    label: Text(
+                      'Light',
+                      style: TextStyle(fontSize: 12),
+                      softWrap: false,
+                      overflow: TextOverflow.clip,
+                    ),
                   ),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.dark,
-                  icon: Icon(Icons.dark_mode, size: 16),
-                  label: Text(
-                    'Dark',
-                    style: TextStyle(fontSize: 12),
-                    textScaler: TextScaler.noScaling,
+                  ButtonSegment(
+                    value: ThemeMode.dark,
+                    icon: Icon(Icons.dark_mode, size: 16),
+                    label: Text(
+                      'Dark',
+                      style: TextStyle(fontSize: 12),
+                      softWrap: false,
+                      overflow: TextOverflow.clip,
+                    ),
                   ),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.system,
-                  icon: Icon(Icons.settings_system_daydream, size: 16),
-                  label: Text(
-                    'System',
-                    style: TextStyle(fontSize: 12),
-                    textScaler: TextScaler.noScaling,
+                  ButtonSegment(
+                    value: ThemeMode.system,
+                    icon: Icon(Icons.settings_system_daydream, size: 16),
+                    label: Text(
+                      'System',
+                      style: TextStyle(fontSize: 12),
+                      softWrap: false,
+                      overflow: TextOverflow.clip,
+                    ),
                   ),
-                ),
-              ],
-              selected: {currentMode},
-              onSelectionChanged: (Set<ThemeMode> newSelection) {
-                onChanged(newSelection.first);
-              },
-              style: ButtonStyle(visualDensity: VisualDensity.compact),
+                ],
+                selected: {currentMode},
+                onSelectionChanged: (Set<ThemeMode> newSelection) {
+                  onChanged(newSelection.first);
+                },
+                style: ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
             ),
           ),
         ),

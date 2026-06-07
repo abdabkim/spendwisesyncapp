@@ -358,7 +358,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
   Widget _buildInputArea(Color cardColor, Color borderColor, Color textLight, Color textGrey, Color cardSurfaceColor) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
         color: cardColor,
         border: Border(top: BorderSide(color: borderColor)),

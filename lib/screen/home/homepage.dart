@@ -47,8 +47,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // Budget data from Firestore
   double _dailySpent = 0;
   double _dailyLimit = 0;
+  double _weeklySpent = 0;
+  double _weeklyLimit = 0;
+  double _monthlySpent = 0;
+  double _monthlyLimit = 0;
   String _currencySymbol = '\$';
   bool _budgetLoading = true;
+
+  // Selected period for the spend card
+  String _selectedPeriod = 'daily';
+
+  double get _currentSpent {
+    switch (_selectedPeriod) {
+      case 'weekly': return _weeklySpent;
+      case 'monthly': return _monthlySpent;
+      default: return _dailySpent;
+    }
+  }
+  double get _currentLimit {
+    switch (_selectedPeriod) {
+      case 'weekly': return _weeklyLimit;
+      case 'monthly': return _monthlyLimit;
+      default: return _dailyLimit;
+    }
+  }
+  String get _currentPeriodLabel {
+    switch (_selectedPeriod) {
+      case 'weekly': return 'Weekly Spend';
+      case 'monthly': return 'Monthly Spend';
+      default: return 'Daily Spend';
+    }
+  }
 
   // Notification service
   final NotificationService _notificationService = NotificationService();
@@ -207,35 +236,71 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return;
       }
 
-      // Load daily budget from Firestore
-      final dailyDoc = await FirebaseFirestore.instance
-          .collection('budgets')
-          .where('userId', isEqualTo: user.uid)
-          .where('type', isEqualTo: 'daily')
-          .limit(1)
-          .get();
+      final uid = user.uid;
+
+      final results = await Future.wait([
+        FirebaseFirestore.instance
+            .collection('budgets')
+            .where('userId', isEqualTo: uid)
+            .where('type', isEqualTo: 'daily')
+            .limit(1)
+            .get(),
+        FirebaseFirestore.instance
+            .collection('budgets')
+            .where('userId', isEqualTo: uid)
+            .where('type', isEqualTo: 'weekly')
+            .limit(1)
+            .get(),
+        FirebaseFirestore.instance
+            .collection('budgets')
+            .where('userId', isEqualTo: uid)
+            .where('type', isEqualTo: 'monthly')
+            .limit(1)
+            .get(),
+      ]);
+
+      final dailyDoc = results[0];
+      final weeklyDoc = results[1];
+      final monthlyDoc = results[2];
+
+      String currencySymbol = '\$';
+
+      double dailySpent = 0, dailyLimit = 0;
+      double weeklySpent = 0, weeklyLimit = 0;
+      double monthlySpent = 0, monthlyLimit = 0;
 
       if (dailyDoc.docs.isNotEmpty) {
         final data = dailyDoc.docs.first.data();
-        final dailySpent = (data['amountSpent'] ?? 0).toDouble();
-        final dailyLimit = (data['limitAmount'] ?? 0).toDouble();
-        final currencySymbol = data['currency'] ?? '\$';
-
-        // Save to SharedPreferences
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setDouble('dailySpent', dailySpent);
-        await prefs.setDouble('dailyLimit', dailyLimit);
-        await prefs.setString('currencySymbol', currencySymbol);
-
-        setState(() {
-          _dailySpent = dailySpent;
-          _dailyLimit = dailyLimit;
-          _currencySymbol = currencySymbol;
-          _budgetLoading = false;
-        });
-      } else {
-        setState(() => _budgetLoading = false);
+        dailySpent = (data['amountSpent'] ?? 0).toDouble();
+        dailyLimit = (data['limitAmount'] ?? 0).toDouble();
+        currencySymbol = data['currency'] ?? '\$';
       }
+      if (weeklyDoc.docs.isNotEmpty) {
+        final data = weeklyDoc.docs.first.data();
+        weeklySpent = (data['amountSpent'] ?? 0).toDouble();
+        weeklyLimit = (data['limitAmount'] ?? 0).toDouble();
+      }
+      if (monthlyDoc.docs.isNotEmpty) {
+        final data = monthlyDoc.docs.first.data();
+        monthlySpent = (data['amountSpent'] ?? 0).toDouble();
+        monthlyLimit = (data['limitAmount'] ?? 0).toDouble();
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('dailySpent', dailySpent);
+      await prefs.setDouble('dailyLimit', dailyLimit);
+      await prefs.setString('currencySymbol', currencySymbol);
+
+      setState(() {
+        _dailySpent = dailySpent;
+        _dailyLimit = dailyLimit;
+        _weeklySpent = weeklySpent;
+        _weeklyLimit = weeklyLimit;
+        _monthlySpent = monthlySpent;
+        _monthlyLimit = monthlyLimit;
+        _currencySymbol = currencySymbol;
+        _budgetLoading = false;
+      });
     } catch (e) {
       setState(() => _budgetLoading = false);
     }
@@ -1105,18 +1170,86 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         Container(
                           width: 8,
                           height: 8,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: primary,
                             shape: BoxShape.circle,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Daily Spend',
-                          style: TextStyle(
-                            color: textGrey,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(width: 6),
+                        PopupMenuButton<String>(
+                          initialValue: _selectedPeriod,
+                          onSelected: (value) =>
+                              setState(() => _selectedPeriod = value),
+                          color: cardColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: borderColor),
+                          ),
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: 'daily',
+                              child: Text(
+                                'Daily Spend',
+                                style: TextStyle(
+                                  color: _selectedPeriod == 'daily'
+                                      ? primary
+                                      : textLight,
+                                  fontSize: 14,
+                                  fontWeight: _selectedPeriod == 'daily'
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'weekly',
+                              child: Text(
+                                'Weekly Spend',
+                                style: TextStyle(
+                                  color: _selectedPeriod == 'weekly'
+                                      ? primary
+                                      : textLight,
+                                  fontSize: 14,
+                                  fontWeight: _selectedPeriod == 'weekly'
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'monthly',
+                              child: Text(
+                                'Monthly Spend',
+                                style: TextStyle(
+                                  color: _selectedPeriod == 'monthly'
+                                      ? primary
+                                      : textLight,
+                                  fontSize: 14,
+                                  fontWeight: _selectedPeriod == 'monthly'
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                            ),
+                          ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _currentPeriodLabel,
+                                style: TextStyle(
+                                  color: textGrey,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.keyboard_arrow_down,
+                                color: textGrey,
+                                size: 16,
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -1138,7 +1271,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                           ),
                           Text(
-                            _dailySpent.toStringAsFixed(2),
+                            _currentSpent.toStringAsFixed(2),
                             style: TextStyle(
                               color: textLight,
                               fontSize: amountFontSize,
@@ -1194,9 +1327,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final cardColor = isDark ? cardDark : cardLight;
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
-    final remaining = _dailyLimit - _dailySpent;
-    final progress = _dailyLimit > 0
-        ? (_dailySpent / _dailyLimit).clamp(0.0, 1.0)
+    final remaining = _currentLimit - _currentSpent;
+    final progress = _currentLimit > 0
+        ? (_currentSpent / _currentLimit).clamp(0.0, 1.0)
         : 0.00;
 
     // Adjust inner circle and font sizes based on outer circle size
@@ -1239,7 +1372,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Text(
-                        '$_currencySymbol${remaining.toStringAsFixed(2)}',
+                        '$_currencySymbol${remaining.clamp(0, double.infinity).toStringAsFixed(2)}',
                         style: TextStyle(
                           color: textLight,
                           fontSize: amountFontSize,

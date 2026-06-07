@@ -1138,7 +1138,7 @@ class _SignupPageState extends State<SignupPage> {
                           ),
                         ),
                       ),
-                      SizedBox(height: 48), // Extra padding at bottom
+                      SizedBox(height: 48 + MediaQuery.of(context).padding.bottom),
                     ],
                   ),
                 ),

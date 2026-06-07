@@ -139,6 +139,19 @@ class _ShoppingCalculatorState extends State<ShoppingCalculator> {
     });
   }
 
+  void _onBackspacePressed() {
+    final current = _displayController.text;
+    if (current.length <= 1 || current == '0') {
+      _displayController.text = '0';
+    } else {
+      _displayController.text = current.substring(0, current.length - 1);
+    }
+    _displayController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _displayController.text.length),
+    );
+    _updateCalculation();
+  }
+
   void _removeTaxFromPrice() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isDark ? backgroundDark : backgroundLight;
@@ -883,8 +896,8 @@ class _ShoppingCalculatorState extends State<ShoppingCalculator> {
             children: [
               // Total Amount Display
               Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(24),
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
                 decoration: BoxDecoration(
                   color: cardColor,
                   borderRadius: BorderRadius.circular(20),
@@ -927,14 +940,14 @@ class _ShoppingCalculatorState extends State<ShoppingCalculator> {
                         '$_currencySymbol${breakdown['total']!.toStringAsFixed(2)}',
                         style: TextStyle(
                           color: primary,
-                          fontSize: 48,
+                          fontSize: 40,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 10),
                     Divider(color: borderColor),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     _buildBreakdownRow(
                       'Subtotal',
                       breakdown['subtotal']!,
@@ -1212,8 +1225,9 @@ class _ShoppingCalculatorState extends State<ShoppingCalculator> {
                             ),
                             _buildCalculatorButton('/', onTap: () {}),
                             _buildCalculatorButton(
-                              '×',
-                              onTap: () {},
+                              '',
+                              icon: Icons.backspace_outlined,
+                              onTap: _onBackspacePressed,
                               color: primary,
                             ),
                           ],
@@ -1356,18 +1370,16 @@ class _ShoppingCalculatorState extends State<ShoppingCalculator> {
     VoidCallback? onLongPress,
     Color? color,
     double fontSize = 20,
+    IconData? icon,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? backgroundDark : backgroundLight;
-    final cardColor = isDark ? cardDark : cardLight;
     final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
     final borderColor = isDark ? borderDark : borderLight;
-    final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
 
     return Expanded(
       child: Container(
-        margin: const EdgeInsets.all(6), // CHANGED from 4 to 6
+        margin: const EdgeInsets.all(6),
         child: Material(
           color: cardSurfaceColor,
           borderRadius: BorderRadius.circular(12),
@@ -1381,14 +1393,16 @@ class _ShoppingCalculatorState extends State<ShoppingCalculator> {
                 border: Border.all(color: borderColor),
               ),
               child: Center(
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    color: color ?? textLight,
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                child: icon != null
+                    ? Icon(icon, color: color ?? textLight, size: fontSize + 4)
+                    : Text(
+                        text,
+                        style: TextStyle(
+                          color: color ?? textLight,
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
           ),

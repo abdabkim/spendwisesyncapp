@@ -178,16 +178,15 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   }
 
   double get _totalDeductions {
-    return _monthlyDeductions.fold(
-      0.0,
-      (sum, item) => sum + (item['amount'] as num).toDouble(),
-    );
+    return _monthlyDeductions
+        .where((item) => item['enabled'] as bool? ?? true)
+        .fold(0.0, (sum, item) => sum + (item['amount'] as num).toDouble());
   }
 
-  double get _totalAvailableMoney {
-    // Pay minus total deductions, then add bank and cash
-    return _bankAmount - _totalDeductions - _cashAmount;
-  }
+  // What's left in the bank after deductions are paid
+  double get _netBankBalance => _bankAmount - _totalDeductions;
+
+  double get _totalAvailableMoney => _netBankBalance;
 
   Future<void> _saveBudgetConfiguration() async {
     try {
@@ -308,7 +307,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
     final controller = TextEditingController(
       text: type == 'pay'
-          ? _formatCurrency(_payAmount)
+          ? '' // always start blank — pay entry is additive
           : type == 'bank'
           ? _formatCurrency(_bankAmount)
           : _formatCurrency(_cashAmount),
@@ -358,7 +357,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               final value = double.tryParse(controller.text) ?? 0;
               setState(() {
                 if (type == 'pay') {
-                  _payAmount = value;
+                  _bankAmount = _bankAmount + value; // pay deposits into bank balance
+                  _payAmount = value; // track last pay for the PAY card display
                 } else if (type == 'bank') {
                   _bankAmount = value;
                 } else {
@@ -843,7 +843,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
     if (weekEvents.isEmpty) return const SizedBox.shrink();
 
-    final totalProjected = weekEvents.fold<double>(0, (sum, e) => sum + e.projectedCost);
+    final totalProjected = weekEvents.fold<double>(
+      0,
+      (sum, e) => sum + e.projectedCost,
+    );
     final primaryEvent = weekEvents.first;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -902,7 +905,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     ).then((_) => _loadBudgetData());
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFf59e0b).withOpacity(0.15),
                       borderRadius: BorderRadius.circular(6),
@@ -932,11 +938,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             const SizedBox(height: 6),
             Text(
               'Your usual \$100.00 weekend limit is recommended to scale up to \$${(100.00 + totalProjected).toStringAsFixed(0)} to accommodate this. We advise trimming non-essential daily limits to prepare.',
-              style: TextStyle(
-                color: textGrey,
-                fontSize: 12,
-                height: 1.4,
-              ),
+              style: TextStyle(color: textGrey, fontSize: 12, height: 1.4),
             ),
           ],
         ),
@@ -1067,7 +1069,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                   _buildMoneySourceCard(
                     icon: Icons.account_balance,
                     label: 'BANK',
-                    amount: _bankAmount,
+                    amount: _netBankBalance,
                     color: const Color(0xFF3b82f6),
                     onAdd: () =>
                         _showMoneyInputModal('Enter Bank Balance', 'bank'),
@@ -1112,20 +1114,24 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                         color: Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: primary,
+                          color: isDark ? primary : const Color(0xFF0066cc),
                           width: 2,
                           style: BorderStyle.solid,
                         ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.add_circle, color: primary, size: 24),
-                          SizedBox(width: 12),
+                        children: [
+                          Icon(
+                            isDark ? Icons.add_circle : Icons.add_circle,
+                            color: isDark ? primary : const Color(0xFF0066cc),
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
                           Text(
                             'Add Deduction',
                             style: TextStyle(
-                              color: primary,
+                              color: isDark ? primary : const Color(0xFF0066cc),
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -1210,7 +1216,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                 child: Text(
                                   name,
                                   style: TextStyle(
-                                    color: enabled ? Colors.white : textGrey,
+                                    color: enabled ? textLight : textGrey,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                     decoration: enabled
@@ -1224,7 +1230,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                               Text(
                                 '$_currencySymbol${_formatCurrency(amount)}',
                                 style: TextStyle(
-                                  color: enabled ? Colors.white : textGrey,
+                                  color: enabled ? textLight : textGrey,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1311,7 +1317,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               ),
             ),
 
-            const SizedBox(height: 40),
+            SizedBox(height: 40 + MediaQuery.of(context).padding.bottom),
           ],
         ),
       ),

@@ -682,6 +682,7 @@ class _AddReceiptPageState extends State<AddReceiptPage> {
         ],
       ),
       body: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -1369,7 +1370,7 @@ class _ManualCorrectionPageState extends State<ManualCorrectionPage> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
         child: Form(
           key: _formKey,
           child: Column(

@@ -591,7 +591,7 @@ class _ReceiptsPageState extends State<ReceiptsPage> {
                       },
                     ),
 
-                    const SizedBox(height: 40),
+                    SizedBox(height: 40 + MediaQuery.of(context).padding.bottom),
                   ],
                 ),
               ),
