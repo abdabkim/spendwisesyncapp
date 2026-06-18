@@ -199,14 +199,16 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         final data = monthlyDoc.data()!;
         _currencySymbol = data['currency'] ?? '\$';
         final monthlySpent = (data['amountSpent'] ?? 0).toDouble();
-        _monthlyVsAvg = monthlySpent * 0.15;
-        _monthlyPercentage = 0.15;
+        final monthlyLimit = (data['limitAmount'] ?? 1).toDouble();
+        _monthlyVsAvg = monthlySpent;
+        _monthlyPercentage = monthlyLimit > 0 ? (monthlySpent / monthlyLimit) : 0.15;
       }
 
       if (weeklyDoc.exists) {
         final data = weeklyDoc.data()!;
         _weeklySpending = (data['amountSpent'] ?? 0).toDouble();
-        _weeklyPercentage = 0.70;
+        final weeklyLimit = (data['limitAmount'] ?? 1).toDouble();
+        _weeklyPercentage = weeklyLimit > 0 ? (_weeklySpending / weeklyLimit) : 0.70;
       }
 
       if (dailyDoc.exists) {
@@ -304,15 +306,30 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   List<FlSpot> _generateTrendData() {
-    // Generate sample trend data for the chart
+    // Generate trend data based on weekly spending
+    // Use the weekly spending as a baseline and create a 30-day trend
+    if (_weeklySpending <= 0) {
+      // Fallback to sample data if no spending data
+      return [
+        const FlSpot(0, 1800),
+        const FlSpot(5, 2200),
+        const FlSpot(10, 1900),
+        const FlSpot(15, 2400),
+        const FlSpot(20, 2100),
+        const FlSpot(25, 2600),
+        const FlSpot(30, 2840),
+      ];
+    }
+
+    final dailyAverage = _weeklySpending / 7;
     return [
-      const FlSpot(0, 1800),
-      const FlSpot(5, 2200),
-      const FlSpot(10, 1900),
-      const FlSpot(15, 2400),
-      const FlSpot(20, 2100),
-      const FlSpot(25, 2600),
-      const FlSpot(30, 2840),
+      FlSpot(0, dailyAverage * 5),
+      FlSpot(5, dailyAverage * 6.2),
+      FlSpot(10, dailyAverage * 5.4),
+      FlSpot(15, dailyAverage * 6.9),
+      FlSpot(20, dailyAverage * 6.0),
+      FlSpot(25, dailyAverage * 7.4),
+      FlSpot(30, dailyAverage * 8.1),
     ];
   }
 
@@ -375,11 +392,29 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             ),
           ],
         ),
-        body: Stack(
-          children: [
-            ListView(
-              padding: const EdgeInsets.only(bottom: 120, left: 16, right: 16),
-              children: [
+        body: _isLoading
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: primary),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Loading Analytics...',
+                      style: TextStyle(
+                        color: textLight,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : Stack(
+                children: [
+                  ListView(
+                    padding: const EdgeInsets.only(bottom: 120, left: 16, right: 16),
+                    children: [
                 const SizedBox(height: 24),
                 _buildPeriodSelector(
                   isDark,
@@ -413,74 +448,74 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   textGrey,
                   textLight,
                 ),
-                const SizedBox(height: 24),
-              ],
-            ),
-            Positioned(
-              bottom: 20,
-              left: 16,
-              right: 16,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                clipBehavior: Clip.none,
-                children: [
-                  _buildBottomNav(isDark, cardColor),
-                  Positioned(
-                    bottom: 15,
-                    child: _buildCenterNavButton(isDark, backgroundColor),
+                    const SizedBox(height: 24),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            if (_isExporting)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black54,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3b82f6)),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Compiling Financial Report...',
-                            style: TextStyle(
-                              color: textLight,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Structuring Balance Sheets & Forecasts',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
+                  Positioned(
+                    bottom: 20,
+                    left: 16,
+                    right: 16,
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      clipBehavior: Clip.none,
+                      children: [
+                        _buildBottomNav(isDark, cardColor),
+                        Positioned(
+                          bottom: 15,
+                          child: _buildCenterNavButton(isDark, backgroundColor),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                  if (_isExporting)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black54,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 10,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3b82f6)),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Compiling Financial Report...',
+                                  style: TextStyle(
+                                    color: textLight,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Structuring Balance Sheets & Forecasts',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
       ),
     );
   }
@@ -599,7 +634,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.2),
+                  color: accentColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: accentColor, size: 20),
@@ -612,8 +647,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   ),
                   decoration: BoxDecoration(
                     color: percentage > 0
-                        ? greenSuccess.withOpacity(0.2)
-                        : accentOrange.withOpacity(0.2),
+                        ? greenSuccess.withValues(alpha: 0.2)
+                        : accentOrange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -683,7 +718,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: greenSuccess.withOpacity(0.2),
+                  color: greenSuccess.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -775,8 +810,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                       show: true,
                       gradient: LinearGradient(
                         colors: [
-                          primary.withOpacity(0.3),
-                          accentTeal.withOpacity(0.0),
+                          primary.withValues(alpha: 0.3),
+                          accentTeal.withValues(alpha: 0.0),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -901,7 +936,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           child: LinearProgressIndicator(
             value: percentage / 100,
             minHeight: 8,
-            backgroundColor: color.withOpacity(0.2),
+            backgroundColor: color.withValues(alpha: 0.2),
             valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
         ),
@@ -937,7 +972,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: primary.withOpacity(0.2),
+                      color: primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
@@ -971,7 +1006,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: textGrey.withOpacity(0.2),
+                      color: textGrey.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(Icons.attach_money, color: textGrey, size: 20),
@@ -1053,9 +1088,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     return Container(
       height: 80,
       decoration: BoxDecoration(
-        color: cardColor.withOpacity(0.9),
+        color: cardColor.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -1109,7 +1144,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: isSelected ? primary.withOpacity(0.1) : Colors.transparent,
+          color: isSelected ? primary.withValues(alpha: 0.1) : Colors.transparent,
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: isSelected ? primary : textGrey, size: 24),
@@ -1128,7 +1163,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         border: Border.all(color: backgroundColor, width: 6),
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(0.3),
+            color: primary.withValues(alpha: 0.3),
             blurRadius: 20,
             spreadRadius: 2,
           ),
@@ -1172,7 +1207,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   width: 48,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: textColor.withOpacity(0.15),
+                    color: textColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1201,7 +1236,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3b82f6).withOpacity(0.1),
+                    color: const Color(0xFF3b82f6).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFF3b82f6)),
@@ -1235,7 +1270,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF14b8a6).withOpacity(0.1),
+                    color: const Color(0xFF14b8a6).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.grid_on_outlined, color: Color(0xFF14b8a6)),

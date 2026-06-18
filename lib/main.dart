@@ -16,10 +16,12 @@ import 'package:spendwisesyncapp/tododashboard/todo_dashboard.dart';
 import 'package:spendwisesyncapp/services/notification_service.dart';
 import 'package:spendwisesyncapp/providers/shared_prefs_provider.dart';
 import 'package:spendwisesyncapp/providers/settings_provider.dart';
+import 'package:spendwisesyncapp/providers/user_preferences_provider.dart';
 import 'firebase_options.dart';
 import 'onboarding_screen.dart';
 import 'package:spendwisesyncapp/screen/auth/login_page.dart';
 import 'package:spendwisesyncapp/screen/auth/signup_page.dart';
+import 'package:spendwisesyncapp/screen/auth/financial_disclaimer_screen.dart';
 import 'package:spendwisesyncapp/screen/home/homepage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -221,8 +223,29 @@ class _SplashScreenState extends State<SplashScreen>
     User? user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      // User is logged in, navigate to home page
-      Navigator.of(context).pushReplacementNamed('/home');
+      // User is logged in, check if they've accepted disclaimer
+      final prefs = await SharedPreferences.getInstance();
+      final disclaimerAccepted = prefs.getBool('disclaimerAccepted') ?? false;
+
+      if (!disclaimerAccepted) {
+        // Show disclaimer first
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (dialogContext) => const FinancialDisclaimerDialog(),
+          ).whenComplete(() {
+            if (mounted) {
+              Navigator.of(context).pushReplacementNamed('/home');
+            }
+          });
+        }
+      } else {
+        // Disclaimer already accepted, go to home
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/home');
+        }
+      }
     } else {
       // User is not logged in, navigate to onboarding
       Navigator.of(context).pushReplacementNamed('/onboarding');

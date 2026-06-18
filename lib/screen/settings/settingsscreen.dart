@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // New Import
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:spendwisesyncapp/providers/settings_provider.dart';
+import 'package:spendwisesyncapp/providers/user_preferences_provider.dart';
 import 'package:spendwisesyncapp/screen/home/homepage.dart';
 import 'package:spendwisesyncapp/screen/budget/analyticsscreen.dart';
 import 'package:spendwisesyncapp/screen/profile/profilescreen.dart';
 import 'package:spendwisesyncapp/services/financial_report_service.dart';
 import 'package:spendwisesyncapp/screen/settings/support_chat_screen.dart';
+import 'package:spendwisesyncapp/screen/auth/financial_disclaimer_screen.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -23,6 +25,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // State variables for expansion logic
   bool _showPrivacy = false;
   bool _showTerms = false;
+  bool _showDisclaimer = false;
+
+  // Smart features toggles
+  bool _behavioralNudgesEnabled = true;
+  bool _savingsPredictionsEnabled = true;
+  bool _comparativeInsightsEnabled = true;
+  bool _recurringTemplatesEnabled = true;
+  bool _goalsTrackingEnabled = true;
 
   // Financial report states
   bool _isExporting = false;
@@ -50,6 +60,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
+      _behavioralNudgesEnabled =
+          prefs.getBool('behavioralNudgesEnabled') ?? true;
+      _savingsPredictionsEnabled =
+          prefs.getBool('savingsPredictionsEnabled') ?? true;
+      _comparativeInsightsEnabled =
+          prefs.getBool('comparativeInsightsEnabled') ?? true;
+      _recurringTemplatesEnabled =
+          prefs.getBool('recurringTemplatesEnabled') ?? true;
+      _goalsTrackingEnabled = prefs.getBool('goalsTrackingEnabled') ?? true;
     });
   }
 
@@ -282,10 +301,99 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
                           const SizedBox(height: 32),
 
+                          // --- SMART FEATURES SECTION ---
+                          _buildSectionTitle('Smart Features & Notifications',
+                              textColor),
+                          const SizedBox(height: 8),
+                          _buildSettingsGroup(cardColor, _isDarkMode, [
+                            _buildSwitchTile(
+                              icon: Icons.trending_down,
+                              title: 'Behavioral Nudges',
+                              value: _behavioralNudgesEnabled,
+                              onChanged: (val) {
+                                setState(
+                                    () => _behavioralNudgesEnabled = val);
+                                _savePreference(
+                                    'behavioralNudgesEnabled', val);
+                              },
+                              textColor: textColor,
+                              isDark: _isDarkMode,
+                            ),
+                            _buildSwitchTile(
+                              icon: Icons.analytics,
+                              title: 'Savings Predictions',
+                              value: _savingsPredictionsEnabled,
+                              onChanged: (val) {
+                                setState(
+                                    () => _savingsPredictionsEnabled = val);
+                                _savePreference(
+                                    'savingsPredictionsEnabled', val);
+                              },
+                              textColor: textColor,
+                              isDark: _isDarkMode,
+                            ),
+                            _buildSwitchTile(
+                              icon: Icons.compare,
+                              title: 'Comparative Insights',
+                              value: _comparativeInsightsEnabled,
+                              onChanged: (val) {
+                                setState(
+                                    () => _comparativeInsightsEnabled = val);
+                                _savePreference(
+                                    'comparativeInsightsEnabled', val);
+                              },
+                              textColor: textColor,
+                              isDark: _isDarkMode,
+                            ),
+                            _buildSwitchTile(
+                              icon: Icons.repeat,
+                              title: 'Recurring Templates',
+                              value: _recurringTemplatesEnabled,
+                              onChanged: (val) {
+                                setState(
+                                    () => _recurringTemplatesEnabled = val);
+                                _savePreference(
+                                    'recurringTemplatesEnabled', val);
+                              },
+                              textColor: textColor,
+                              isDark: _isDarkMode,
+                            ),
+                            _buildSwitchTile(
+                              icon: Icons.flag,
+                              title: 'Goals Tracking',
+                              value: _goalsTrackingEnabled,
+                              onChanged: (val) {
+                                setState(() => _goalsTrackingEnabled = val);
+                                _savePreference('goalsTrackingEnabled', val);
+                              },
+                              textColor: textColor,
+                              isDark: _isDarkMode,
+                              showDivider: false,
+                            ),
+                          ]),
+
+                          const SizedBox(height: 32),
+
                           // --- LEGAL SECTION ---
                           _buildSectionTitle('Legal and Privacy', textColor),
                           const SizedBox(height: 8),
                           _buildSettingsGroup(cardColor, _isDarkMode, [
+                            _buildNavigationTile(
+                              icon: Icons.info_outline,
+                              title: 'Financial Disclaimer',
+                              subtitle: 'Important notices about app usage',
+                              onTap: () => setState(
+                                  () => _showDisclaimer = !_showDisclaimer),
+                              textColor: textColor,
+                              isDark: _isDarkMode,
+                              isExpanded: _showDisclaimer,
+                            ),
+                            _buildExpandableContent(
+                              isVisible: _showDisclaimer,
+                              textColor: subTextColor,
+                              content:
+                                  "SpendWise Sync is for informational purposes only and does NOT constitute professional financial, investment, tax, or legal advice. Please consult with qualified professionals for important financial decisions. We are not liable for any losses from app usage. Protect your credentials and review your account regularly.",
+                            ),
                             _buildNavigationTile(
                               icon: Icons.policy,
                               title: 'Privacy Policy',

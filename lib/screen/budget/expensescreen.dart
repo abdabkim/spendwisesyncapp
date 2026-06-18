@@ -42,8 +42,11 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   double _bankAmount = 0;
   double _cashAmount = 0;
 
-  // Monthly deductions list
+  // Monthly deductions list (current month)
   List<Map<String, dynamic>> _monthlyDeductions = [];
+
+  // Historical deductions grouped by month
+  List<Map<String, dynamic>> _deductionHistory = [];
 
   // Daily limit
   double _dailyLimit = 0;
@@ -62,6 +65,21 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   List<CalendarEvent> _calendarEvents = [];
   final CalendarService _calendarService = CalendarService();
+
+  String get _currentMonthKey {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  }
+
+  String get _previousMonthKey {
+    final now = DateTime.now();
+    final prev = DateTime(now.year, now.month - 1);
+    return '${prev.year}-${prev.month.toString().padLeft(2, '0')}';
+  }
+
+  String get _currentMonthLabel {
+    return DateFormat('MMMM yyyy').format(DateTime.now());
+  }
 
   @override
   void initState() {
@@ -89,7 +107,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   Future<void> _loadThemePreference() async {
     final prefs = await SharedPreferences.getInstance();
-    final isDarkMode = prefs.getBool('isDarkMode') ?? true;
+    prefs.getBool('isDarkMode') ?? true;
     // Theme is controlled by main.dart
   }
 
@@ -101,7 +119,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         return;
       }
 
-      // Load budget data from Firestore using consistent document IDs
       final userId = user.uid;
 
       // Daily budget
@@ -125,50 +142,153 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           .doc(monthlyDocId)
           .get();
 
-      setState(() {
-        if (dailyDoc.exists) {
-          final data = dailyDoc.data()!;
-          _dailyLimit = (data['limitAmount'] ?? _dailyLimit).toDouble();
-          _dailySpent = (data['amountSpent'] ?? _dailySpent).toDouble();
-        }
+      List<Map<String, dynamic>> loadedDeductions = [];
+      List<Map<String, dynamic>> loadedHistory = [];
+      String? lastActiveMonth;
+      double loadedBankAmount = _bankAmount;
 
-        if (weeklyDoc.exists) {
-          final data = weeklyDoc.data()!;
-          _weeklyLimit = (data['limitAmount'] ?? _weeklyLimit).toDouble();
-          _weeklySpent = (data['amountSpent'] ?? _weeklySpent).toDouble();
-        }
+      // Extract values first so we can mutate them before setState
+      if (dailyDoc.exists) {
+        final data = dailyDoc.data()!;
+        _dailyLimit = (data['limitAmount'] ?? _dailyLimit).toDouble();
+        _dailySpent = (data['amountSpent'] ?? _dailySpent).toDouble();
+      }
+      if (weeklyDoc.exists) {
+        final data = weeklyDoc.data()!;
+        _weeklyLimit = (data['limitAmount'] ?? _weeklyLimit).toDouble();
+        _weeklySpent = (data['amountSpent'] ?? _weeklySpent).toDouble();
+      }
+      if (monthlyDoc.exists) {
+        final data = monthlyDoc.data()!;
+        _monthlyLimit = (data['limitAmount'] ?? _monthlyLimit).toDouble();
+        _monthlySpent = (data['amountSpent'] ?? _monthlySpent).toDouble();
+        _payAmount = (data['payAmount'] ?? _payAmount).toDouble();
+        loadedBankAmount = (data['bankAmount'] ?? _bankAmount).toDouble();
+        _cashAmount = (data['cashAmount'] ?? _cashAmount).toDouble();
+        _currencySymbol = data['currency'] ?? '\$';
 
+        if (data['monthlyDeductions'] != null) {
+          loadedDeductions = List<Map<String, dynamic>>.from(
+            data['monthlyDeductions'].map(
+              (item) => Map<String, dynamic>.from(item),
+            ),
+          );
+        }
+        if (data['deductionHistory'] != null) {
+          loadedHistory = List<Map<String, dynamic>>.from(
+            data['deductionHistory'].map(
+              (item) => Map<String, dynamic>.from(item as Map),
+            ),
+          );
+        }
+        lastActiveMonth = data['lastActiveMonth'] as String?;
+      }
+
+      final monthlyDocRef = FirebaseFirestore.instance
+          .collection('budgets')
+          .doc('${userId}_monthly');
+
+      double deductionTotal(List<Map<String, dynamic>> deductions) =>
+          deductions
+              .where((d) => d['enabled'] as bool? ?? true)
+              .fold<double>(
+                0.0,
+                (acc, d) => acc + (d['amount'] as num).toDouble(),
+              );
+
+      // Step 1 — one-time migration: legacy undated deductions → previous month.
+      final hasLegacyDeductions = loadedDeductions.isNotEmpty &&
+          loadedDeductions.any((d) => d['date'] == null);
+
+      if (hasLegacyDeductions) {
+        final prevKey = _previousMonthKey;
+        final alreadyArchived =
+            loadedHistory.any((h) => h['monthKey'] == prevKey);
+        if (!alreadyArchived) {
+          loadedHistory.insert(0, {
+            'monthKey': prevKey,
+            'monthLabel': _labelForMonthKey(prevKey),
+            'deductions': loadedDeductions,
+            'totalDeductions': deductionTotal(loadedDeductions),
+            'bankAdjusted': false, // will be handled in step 2 below
+          });
+        }
+        loadedDeductions = [];
         if (monthlyDoc.exists) {
-          final data = monthlyDoc.data()!;
-          _monthlyLimit = (data['limitAmount'] ?? _monthlyLimit).toDouble();
-          _monthlySpent = (data['amountSpent'] ?? _monthlySpent).toDouble();
-
-          // Get available money from monthly budget
-          _payAmount = (data['payAmount'] ?? _payAmount).toDouble();
-          _bankAmount = (data['bankAmount'] ?? _bankAmount).toDouble();
-          _cashAmount = (data['cashAmount'] ?? _cashAmount).toDouble();
-          _currencySymbol = data['currency'] ?? '\$';
-
-          // Load monthly deductions
-          if (data['monthlyDeductions'] != null) {
-            _monthlyDeductions = List<Map<String, dynamic>>.from(
-              data['monthlyDeductions'].map(
-                (item) => Map<String, dynamic>.from(item),
-              ),
-            );
-          }
+          await monthlyDocRef.update({
+            'monthlyDeductions': [],
+            'deductionHistory': loadedHistory,
+            'lastActiveMonth': _currentMonthKey,
+          });
         }
-      });
+      } else if (lastActiveMonth != null &&
+          lastActiveMonth != _currentMonthKey &&
+          loadedDeductions.isNotEmpty) {
+        // Normal month rollover: archive current deductions under the old month.
+        final alreadyArchived = loadedHistory.any(
+          (h) => h['monthKey'] == lastActiveMonth,
+        );
+        if (!alreadyArchived) {
+          loadedHistory.insert(0, {
+            'monthKey': lastActiveMonth,
+            'monthLabel': _labelForMonthKey(lastActiveMonth),
+            'deductions': loadedDeductions,
+            'totalDeductions': deductionTotal(loadedDeductions),
+            'bankAdjusted': false,
+          });
+        }
+        loadedDeductions = [];
+        await monthlyDocRef.update({
+          'monthlyDeductions': [],
+          'deductionHistory': loadedHistory,
+          'lastActiveMonth': _currentMonthKey,
+        });
+      } else if (lastActiveMonth == null && monthlyDoc.exists) {
+        await monthlyDocRef.update({'lastActiveMonth': _currentMonthKey});
+      }
+
+      // Step 2 — apply any history entries not yet reflected in bankAmount.
+      // Each entry is stamped bankAdjusted:true exactly once so this is safe
+      // to run on every load without double-subtracting.
+      bool needsBankUpdate = false;
+      for (final entry in loadedHistory) {
+        if (!(entry['bankAdjusted'] as bool? ?? false)) {
+          final entryTotal =
+              (entry['totalDeductions'] as num?)?.toDouble() ?? 0.0;
+          loadedBankAmount -= entryTotal;
+          entry['bankAdjusted'] = true;
+          needsBankUpdate = true;
+        }
+      }
+      if (needsBankUpdate && monthlyDoc.exists) {
+        await monthlyDocRef.update({
+          'bankAmount': loadedBankAmount,
+          'deductionHistory': loadedHistory,
+        });
+      }
 
       final calendarEvents = await _calendarService.getEvents(userId);
 
       setState(() {
+        _bankAmount = loadedBankAmount;
+        _monthlyDeductions = loadedDeductions;
+        _deductionHistory = loadedHistory;
         _calendarEvents = calendarEvents;
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
       _showErrorSnackBar('Error loading budget data: $e');
+    }
+  }
+
+  String _labelForMonthKey(String monthKey) {
+    try {
+      final parts = monthKey.split('-');
+      final dt = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+      return DateFormat('MMMM yyyy').format(dt);
+    } catch (_) {
+      return monthKey;
     }
   }
 
@@ -180,10 +300,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   double get _totalDeductions {
     return _monthlyDeductions
         .where((item) => item['enabled'] as bool? ?? true)
-        .fold(0.0, (sum, item) => sum + (item['amount'] as num).toDouble());
+        .fold(0.0, (acc, item) => acc + (item['amount'] as num).toDouble());
   }
 
-  // What's left after pay comes in and deductions go out
   double get _netBankBalance => _bankAmount - _totalDeductions;
 
   double get _totalAvailableMoney => _netBankBalance;
@@ -211,7 +330,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       final monthlyStart = DateTime(now.year, now.month, 1);
       final monthlyEnd = DateTime(now.year, now.month + 1, 1);
 
-      // Save Daily Budget
       await _saveBudget(
         userId: user.uid,
         type: 'daily',
@@ -221,7 +339,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         periodEnd: dailyEnd,
       );
 
-      // Save Weekly Budget
       await _saveBudget(
         userId: user.uid,
         type: 'weekly',
@@ -231,7 +348,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         periodEnd: weeklyEnd,
       );
 
-      // Save Monthly Budget
       await _saveBudget(
         userId: user.uid,
         type: 'monthly',
@@ -255,13 +371,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     required DateTime periodStart,
     required DateTime periodEnd,
   }) async {
-    // Use a consistent document ID based on userId and type to prevent duplicates
     final docId = '${userId}_$type';
     final docRef = FirebaseFirestore.instance.collection('budgets').doc(docId);
 
     final totalAvailable = _totalAvailableMoney;
     final remaining = totalAvailable - spent;
-    final alertThreshold = 0.8; // 80%
+    const alertThreshold = 0.8;
 
     final budgetData = {
       'budgetId': docId,
@@ -280,17 +395,16 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       'cashAmount': _cashAmount,
       'monthlyDeductions': _monthlyDeductions,
       'totalDeductions': _totalDeductions,
+      'deductionHistory': _deductionHistory,
+      'lastActiveMonth': _currentMonthKey,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    // Check if document exists
     final docSnapshot = await docRef.get();
 
     if (docSnapshot.exists) {
-      // Update existing document
       await docRef.update(budgetData);
     } else {
-      // Create new document with createdAt
       budgetData['createdAt'] = FieldValue.serverTimestamp();
       await docRef.set(budgetData);
     }
@@ -298,16 +412,14 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   void _showMoneyInputModal(String title, String type) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? backgroundDark : backgroundLight;
     final cardColor = isDark ? cardDark : cardLight;
-    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
     final borderColor = isDark ? borderDark : borderLight;
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
 
     final controller = TextEditingController(
       text: type == 'pay'
-          ? '' // always start blank — pay entry is additive
+          ? ''
           : type == 'bank'
           ? _formatCurrency(_bankAmount)
           : _formatCurrency(_cashAmount),
@@ -389,9 +501,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   void _showAddDeductionModal() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? backgroundDark : backgroundLight;
     final cardColor = isDark ? cardDark : cardLight;
-    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
     final borderColor = isDark ? borderDark : borderLight;
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
@@ -474,6 +584,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     'name': name,
                     'amount': amount,
                     'enabled': true,
+                    'date': DateTime.now().toIso8601String(),
                   });
                 });
                 Navigator.pop(context);
@@ -500,9 +611,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   void _showEditDeductionModal(int index) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? backgroundDark : backgroundLight;
     final cardColor = isDark ? cardDark : cardLight;
-    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
     final borderColor = isDark ? borderDark : borderLight;
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
@@ -571,7 +680,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              // Delete deduction
               setState(() {
                 _monthlyDeductions.removeAt(index);
               });
@@ -594,6 +702,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     'name': name,
                     'amount': amount,
                     'enabled': deduction['enabled'] ?? true,
+                    // preserve original date if it exists
+                    'date': deduction['date'] ?? DateTime.now().toIso8601String(),
                   };
                 });
                 Navigator.pop(context);
@@ -623,9 +733,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   void _showLimitEditModal(String type) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? backgroundDark : backgroundLight;
     final cardColor = isDark ? cardDark : cardLight;
-    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
     final borderColor = isDark ? borderDark : borderLight;
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
@@ -755,7 +863,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     );
   }
 
-  void _showSuccessSnackBar(String message) {
+  void _showHistoryBottomSheet() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isDark ? backgroundDark : backgroundLight;
     final cardColor = isDark ? cardDark : cardLight;
@@ -764,11 +872,159 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
 
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          minChildSize: 0.4,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                border: Border.all(color: borderColor),
+              ),
+              child: Column(
+                children: [
+                  // Handle bar
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 8),
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: textGrey.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.history, color: primary, size: 22),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Deduction History',
+                          style: TextStyle(
+                            color: textLight,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: Icon(Icons.close, color: textGrey, size: 22),
+                          onPressed: () => Navigator.pop(context),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Divider(color: borderColor, height: 1),
+
+                  // History list
+                  Expanded(
+                    child: _deductionHistory.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.inbox_outlined,
+                                  color: textGrey,
+                                  size: 48,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No history yet',
+                                  style: TextStyle(
+                                    color: textGrey,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Past months will appear here',
+                                  style: TextStyle(
+                                    color: textGrey.withValues(alpha: 0.6),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            itemCount: _deductionHistory.length,
+                            itemBuilder: (context, i) {
+                              final entry = _deductionHistory[i];
+                              final monthLabel =
+                                  entry['monthLabel'] as String? ??
+                                  entry['monthKey'] as String? ??
+                                  'Unknown';
+                              final deductions =
+                                  (entry['deductions'] as List?)
+                                      ?.map(
+                                        (d) =>
+                                            Map<String, dynamic>.from(d as Map),
+                                      )
+                                      .toList() ??
+                                  [];
+                              final total =
+                                  (entry['totalDeductions'] as num?)
+                                      ?.toDouble() ??
+                                  0.0;
+
+                              return _HistoryMonthTile(
+                                monthLabel: monthLabel,
+                                total: total,
+                                deductions: deductions,
+                                currencySymbol: _currencySymbol,
+                                cardColor: cardColor,
+                                cardSurfaceColor: cardSurfaceColor,
+                                borderColor: borderColor,
+                                textGrey: textGrey,
+                                textLight: textLight,
+                                primary: primary,
+                                redError: redError,
+                                formatCurrency: _formatCurrency,
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: textLight),
+            const Icon(Icons.check_circle, color: Colors.white),
             const SizedBox(width: 12),
             Expanded(child: Text(message)),
           ],
@@ -781,19 +1037,11 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   }
 
   void _showErrorSnackBar(String message) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? backgroundDark : backgroundLight;
-    final cardColor = isDark ? cardDark : cardLight;
-    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
-    final borderColor = isDark ? borderDark : borderLight;
-    final textGrey = isDark ? textGreyDark : textGreyLight;
-    final textLight = isDark ? textLightDark : textLightLight;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error, color: textLight),
+            const Icon(Icons.error, color: Colors.white),
             const SizedBox(width: 12),
             Expanded(child: Text(message)),
           ],
@@ -845,13 +1093,11 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
     final totalProjected = weekEvents.fold<double>(
       0,
-      (sum, e) => sum + e.projectedCost,
+      (acc, e) => acc + e.projectedCost,
     );
     final primaryEvent = weekEvents.first;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? cardDark : cardLight;
-    final borderColor = isDark ? borderDark : borderLight;
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
 
@@ -862,17 +1108,17 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              const Color(0xFFf59e0b).withOpacity(0.12),
-              const Color(0xFF8b5cf6).withOpacity(0.04),
+              const Color(0xFFf59e0b).withValues(alpha: 0.12),
+              const Color(0xFF8b5cf6).withValues(alpha: 0.04),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFf59e0b).withOpacity(0.3)),
+          border: Border.all(color: const Color(0xFFf59e0b).withValues(alpha: 0.3)),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFf59e0b).withOpacity(0.03),
+              color: const Color(0xFFf59e0b).withValues(alpha: 0.03),
               blurRadius: 10,
               spreadRadius: 1,
             ),
@@ -910,7 +1156,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFf59e0b).withOpacity(0.15),
+                      color: const Color(0xFFf59e0b).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Text(
@@ -986,8 +1232,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.tune, color: textLight),
-            onPressed: () {},
+            icon: Icon(Icons.history, color: textLight),
+            tooltip: 'Deduction History',
+            onPressed: _showHistoryBottomSheet,
           ),
         ],
       ),
@@ -1095,13 +1342,33 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Monthly Deductions',
-                    style: TextStyle(
-                      color: textLight,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Monthly Deductions',
+                              style: TextStyle(
+                                color: textLight,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _currentMonthLabel,
+                              style: TextStyle(
+                                color: primary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
 
@@ -1123,7 +1390,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            isDark ? Icons.add_circle : Icons.add_circle,
+                            Icons.add_circle,
                             color: isDark ? primary : const Color(0xFF0066cc),
                             size: 24,
                           ),
@@ -1131,7 +1398,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                           Text(
                             'Add Deduction',
                             style: TextStyle(
-                              color: isDark ? primary : const Color(0xFF0066cc),
+                              color:
+                                  isDark ? primary : const Color(0xFF0066cc),
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -1166,6 +1434,15 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                       final name = deduction['name'] as String;
                       final amount = (deduction['amount'] as num).toDouble();
                       final enabled = deduction['enabled'] as bool? ?? true;
+                      final dateStr = deduction['date'] as String?;
+
+                      String? formattedDate;
+                      if (dateStr != null) {
+                        try {
+                          final dt = DateTime.parse(dateStr);
+                          formattedDate = DateFormat('MMM d, yyyy').format(dt);
+                        } catch (_) {}
+                      }
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -1200,7 +1477,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                     ),
                                   ),
                                   child: enabled
-                                      ? Icon(
+                                      ? const Icon(
                                           Icons.check,
                                           size: 16,
                                           color: Colors.black,
@@ -1211,18 +1488,33 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
                               const SizedBox(width: 16),
 
-                              // Name
+                              // Name + date
                               Expanded(
-                                child: Text(
-                                  name,
-                                  style: TextStyle(
-                                    color: enabled ? textLight : textGrey,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    decoration: enabled
-                                        ? null
-                                        : TextDecoration.lineThrough,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: TextStyle(
+                                        color: enabled ? textLight : textGrey,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        decoration: enabled
+                                            ? null
+                                            : TextDecoration.lineThrough,
+                                      ),
+                                    ),
+                                    if (formattedDate != null) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        formattedDate,
+                                        style: TextStyle(
+                                          color: textGrey.withValues(alpha: 0.7),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
 
@@ -1251,7 +1543,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                           ),
                         ),
                       );
-                    }).toList(),
+                    }),
                 ],
               ),
             ),
@@ -1309,7 +1601,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: Text(
+                  child: const Text(
                     'Save Budget Configuration',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
@@ -1357,7 +1649,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: primary.withOpacity(0.2),
+                      color: primary.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(Icons.add, color: primary, size: 16),
@@ -1403,7 +1695,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
-    final borderColor = isDark ? borderDark : borderLight;
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
 
@@ -1448,7 +1739,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          // Progress Bar
           Stack(
             children: [
               Container(
@@ -1509,12 +1799,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   Widget _buildStatusBadge(String status) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? backgroundDark : backgroundLight;
-    final cardColor = isDark ? cardDark : cardLight;
-    final cardSurfaceColor = isDark ? cardSurface : cardSurfaceLight;
-    final borderColor = isDark ? borderDark : borderLight;
     final textGrey = isDark ? textGreyDark : textGreyLight;
-    final textLight = isDark ? textLightDark : textLightLight;
 
     Color bgColor;
     Color textColor;
@@ -1523,25 +1808,25 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
     switch (status) {
       case 'exceeded':
-        bgColor = redError.withOpacity(0.2);
+        bgColor = redError.withValues(alpha: 0.2);
         textColor = redError;
         label = 'Exceeded';
         icon = Icons.error;
         break;
       case 'near_limit':
-        bgColor = yellowWarning.withOpacity(0.2);
+        bgColor = yellowWarning.withValues(alpha: 0.2);
         textColor = yellowWarning;
         label = 'Near Limit';
         icon = Icons.warning;
         break;
       case 'on_track':
-        bgColor = greenSuccess.withOpacity(0.2);
+        bgColor = greenSuccess.withValues(alpha: 0.2);
         textColor = greenSuccess;
         label = 'On Track';
         icon = Icons.check_circle;
         break;
       default:
-        bgColor = textGrey.withOpacity(0.2);
+        bgColor = textGrey.withValues(alpha: 0.2);
         textColor = textGrey;
         label = 'Not Set';
         icon = Icons.info;
@@ -1552,7 +1837,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: textColor.withOpacity(0.3)),
+        border: Border.all(color: textColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1567,6 +1852,205 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// History month tile — collapsible row for a past month
+// ---------------------------------------------------------------------------
+
+class _HistoryMonthTile extends StatefulWidget {
+  final String monthLabel;
+  final double total;
+  final List<Map<String, dynamic>> deductions;
+  final String currencySymbol;
+  final Color cardColor;
+  final Color cardSurfaceColor;
+  final Color borderColor;
+  final Color textGrey;
+  final Color textLight;
+  final Color primary;
+  final Color redError;
+  final String Function(double, {int decimals}) formatCurrency;
+
+  const _HistoryMonthTile({
+    required this.monthLabel,
+    required this.total,
+    required this.deductions,
+    required this.currencySymbol,
+    required this.cardColor,
+    required this.cardSurfaceColor,
+    required this.borderColor,
+    required this.textGrey,
+    required this.textLight,
+    required this.primary,
+    required this.redError,
+    required this.formatCurrency,
+  });
+
+  @override
+  State<_HistoryMonthTile> createState() => _HistoryMonthTileState();
+}
+
+class _HistoryMonthTileState extends State<_HistoryMonthTile> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: widget.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: widget.borderColor),
+      ),
+      child: Column(
+        children: [
+          // Month header row
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: widget.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.calendar_month,
+                      color: widget.primary,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.monthLabel,
+                          style: TextStyle(
+                            color: widget.textLight,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${widget.deductions.length} deduction${widget.deductions.length == 1 ? '' : 's'}',
+                          style: TextStyle(
+                            color: widget.textGrey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${widget.currencySymbol}${widget.formatCurrency(widget.total)}',
+                    style: TextStyle(
+                      color: widget.redError,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    color: widget.textGrey,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Deductions list (shown when expanded)
+          if (_expanded) ...[
+            Divider(color: widget.borderColor, height: 1),
+            ...widget.deductions.map((d) {
+              final name = d['name'] as String? ?? '';
+              final amount = (d['amount'] as num?)?.toDouble() ?? 0.0;
+              final enabled = d['enabled'] as bool? ?? true;
+              final dateStr = d['date'] as String?;
+
+              String? formattedDate;
+              if (dateStr != null) {
+                try {
+                  final dt = DateTime.parse(dateStr);
+                  formattedDate = DateFormat('MMM d, yyyy').format(dt);
+                } catch (_) {}
+              }
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: enabled
+                            ? widget.primary
+                            : widget.textGrey.withValues(alpha: 0.4),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: TextStyle(
+                              color: enabled
+                                  ? widget.textLight
+                                  : widget.textGrey,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              decoration: enabled
+                                  ? null
+                                  : TextDecoration.lineThrough,
+                            ),
+                          ),
+                          if (formattedDate != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              formattedDate,
+                              style: TextStyle(
+                                color: widget.textGrey.withValues(alpha: 0.7),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${widget.currencySymbol}${widget.formatCurrency(amount)}',
+                      style: TextStyle(
+                        color: enabled ? widget.textLight : widget.textGrey,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 4),
+          ],
         ],
       ),
     );

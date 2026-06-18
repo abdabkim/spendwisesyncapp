@@ -43,6 +43,7 @@ class _SignupPageState extends State<SignupPage> {
   bool _agreedToTerms = false;
   bool _isLoading = false;
   bool _isGoogleLoading = false;
+  bool _isFormValid = false;
   AutovalidateMode _autovalidateMode = AutovalidateMode.disabled;
 
   // Colors - DARK MODE
@@ -69,6 +70,10 @@ class _SignupPageState extends State<SignupPage> {
   void initState() {
     super.initState();
     _loadThemePreference();
+    _fullNameController.addListener(_validateForm);
+    _emailController.addListener(_validateForm);
+    _passwordController.addListener(_validateForm);
+    _confirmPasswordController.addListener(_validateForm);
   }
 
   @override
@@ -91,6 +96,19 @@ class _SignupPageState extends State<SignupPage> {
   Future<void> _loadThemePreference() async {
     final prefs = await SharedPreferences.getInstance();
     final isDarkMode = prefs.getBool('isDarkMode') ?? true;
+  }
+
+  void _validateForm() {
+    setState(() {
+      _isFormValid = _fullNameController.text.isNotEmpty &&
+          _emailController.text.isNotEmpty &&
+          _emailController.text.contains('@') &&
+          _passwordController.text.isNotEmpty &&
+          _passwordController.text.length >= 6 &&
+          _confirmPasswordController.text.isNotEmpty &&
+          _confirmPasswordController.text == _passwordController.text &&
+          _agreedToTerms;
+    });
   }
 
   @override
@@ -450,6 +468,48 @@ class _SignupPageState extends State<SignupPage> {
     }
   }
 
+  void _handleGoogleSignUpWithCheck() {
+    if (!_agreedToTerms) {
+      showDialog(
+        context: context,
+        builder: (BuildContext dialogContext) {
+          final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+          final dialogBgColor = isDark ? const Color(0xFF1a1d24) : const Color(0xFFFFFFFF);
+          final textLight = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF0f1419);
+          final textGrey = isDark ? const Color(0xFFB0BEC5) : const Color(0xFF78909C);
+
+          return AlertDialog(
+            backgroundColor: dialogBgColor,
+            title: Text(
+              'Terms & Conditions Required',
+              style: TextStyle(
+                color: textLight,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: Text(
+              'Please accept the Terms & Conditions before signing up with Google.',
+              style: TextStyle(color: textGrey),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                },
+                child: Text(
+                  'OK',
+                  style: TextStyle(color: primary),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      _handleGoogleSignUp();
+    }
+  }
+
   Future<void> _handleGoogleSignUp() async {
     setState(() {
       _isGoogleLoading = true;
@@ -774,15 +834,17 @@ class _SignupPageState extends State<SignupPage> {
     final borderColor = isDark ? borderDark : borderLight;
     final textGrey = isDark ? textGreyDark : textGreyLight;
     final textLight = isDark ? textLightDark : textLightLight;
+    final scrollbarColor = isDark
+        ? Colors.grey[400]!
+        : Colors.grey[600]!;
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      body: Column(
-        children: [
-          // Add padding for status bar manually
-          SizedBox(height: MediaQuery.of(context).padding.top),
-
-          // AppBar
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // AppBar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             child: Row(
@@ -827,9 +889,19 @@ class _SignupPageState extends State<SignupPage> {
           ),
           // Scrollable content
           Expanded(
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Padding(
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                scrollbarTheme: ScrollbarThemeData(
+                  thumbColor: WidgetStateProperty.all(scrollbarColor),
+                ),
+              ),
+              child: Scrollbar(
+                thumbVisibility: true,
+                thickness: 8,
+                radius: const Radius.circular(4),
+                child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Form(
                   key: _formKey,
@@ -864,12 +936,10 @@ class _SignupPageState extends State<SignupPage> {
                         width: double.infinity,
                         height: 56,
                         child: OutlinedButton(
-                          onPressed: _isGoogleLoading
-                              ? null
-                              : _handleGoogleSignUp,
+                          onPressed: _isGoogleLoading ? null : _handleGoogleSignUpWithCheck,
                           style: OutlinedButton.styleFrom(
                             backgroundColor: cardColor,
-                            disabledBackgroundColor: cardColor.withOpacity(0.6),
+                            disabledBackgroundColor: cardColor.withValues(alpha: 0.5),
                             side: BorderSide.none,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -995,6 +1065,7 @@ class _SignupPageState extends State<SignupPage> {
                               onChanged: (value) {
                                 setState(() {
                                   _agreedToTerms = value ?? false;
+                                  _validateForm();
                                 });
                               },
                               fillColor: MaterialStateProperty.resolveWith((
@@ -1050,14 +1121,12 @@ class _SignupPageState extends State<SignupPage> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleSubmit,
+                          onPressed: (_isFormValid && !_isLoading) ? _handleSubmit : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primary,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor: primary.withOpacity(0.6),
-                            disabledForegroundColor: Colors.white.withOpacity(
-                              0.7,
-                            ),
+                            disabledBackgroundColor: primary.withValues(alpha: 0.5),
+                            disabledForegroundColor: Colors.white.withValues(alpha: 0.5),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -1141,11 +1210,14 @@ class _SignupPageState extends State<SignupPage> {
                       SizedBox(height: 48 + MediaQuery.of(context).padding.bottom),
                     ],
                   ),
+                  ),
+                ),
                 ),
               ),
             ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

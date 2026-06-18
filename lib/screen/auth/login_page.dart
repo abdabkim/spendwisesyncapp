@@ -55,12 +55,24 @@ class _LoginPageState extends State<LoginPage> {
   bool _isPasswordVisible = false;
   bool _isLoading = false;
   bool _isGoogleLoading = false;
+  bool _isFormValid = false;
   AutovalidateMode _autovalidateMode = AutovalidateMode.disabled;
 
   @override
   void initState() {
     super.initState();
     _loadThemePreference();
+    _emailController.addListener(_validateForm);
+    _passwordController.addListener(_validateForm);
+  }
+
+  void _validateForm() {
+    setState(() {
+      _isFormValid = _emailController.text.isNotEmpty &&
+          _passwordController.text.isNotEmpty &&
+          _emailController.text.contains('@') &&
+          _passwordController.text.length >= 6;
+    });
   }
 
   @override
@@ -507,104 +519,119 @@ class _LoginPageState extends State<LoginPage> {
     final textLight = isDark
         ? AppColors.textLightDark
         : AppColors.textLightLight;
+    final scrollbarColor = isDark
+        ? Colors.grey[400]!
+        : Colors.grey[600]!;
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      body: Column(
-        children: [
-          // Add padding for status bar manually
-          SizedBox(height: MediaQuery.of(context).padding.top),
-
-          Expanded(
-            child: SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight:
-                      MediaQuery.of(context).size.height -
-                      MediaQuery.of(context).padding.top -
-                      MediaQuery.of(context).padding.bottom,
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  scrollbarTheme: ScrollbarThemeData(
+                    thumbColor: WidgetStateProperty.all(scrollbarColor),
+                  ),
                 ),
-                child: IntrinsicHeight(
-                  child: Column(
-                    children: [
-                      // Top Bar
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // Back Button
-                            IconButton(
-                              onPressed: () {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const SignupPage(),
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  thickness: 8,
+                  radius: const Radius.circular(4),
+                    child: SingleChildScrollView(
+                    child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight:
+                        MediaQuery.of(context).size.height -
+                        MediaQuery.of(context).padding.top -
+                        MediaQuery.of(context).padding.bottom,
+                  ),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      children: [
+                        // Top Bar
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Back Button
+                              IconButton(
+                                onPressed: () {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const SignupPage(),
+                                    ),
+                                  );
+                                },
+                                icon: Icon(Icons.arrow_back),
+                                color: textLight,
+                                iconSize: 24,
+                              ),
+                              // Help Text
+                              GestureDetector(
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Help feature coming soon'),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  'Help',
+                                  style: TextStyle(
+                                    color: textGrey,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
                                   ),
-                                );
-                              },
-                              icon: Icon(Icons.arrow_back),
-                              color: textLight,
-                              iconSize: 24,
-                            ),
-                            // Help Text
-                            GestureDetector(
-                              onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Help feature coming soon'),
-                                    duration: Duration(seconds: 1),
-                                  ),
-                                );
-                              },
-                              child: Text(
-                                'Help',
-                                style: TextStyle(
-                                  color: textGrey,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Main Content
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(height: 20),
-                              // Header Section
-                              _buildHeader(),
-
-                              SizedBox(height: 40),
-
-                              // Login Form
-                              _buildLoginForm(),
-
-                              const Spacer(),
-
-                              // Footer
-                              _buildFooter(),
-                              SizedBox(height: 24),
                             ],
                           ),
                         ),
+
+                        // Main Content
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(height: 20),
+                                // Header Section
+                                _buildHeader(),
+
+                                SizedBox(height: 40),
+
+                                // Login Form
+                                _buildLoginForm(),
+
+                                const Spacer(),
+
+                                // Footer
+                                _buildFooter(),
+                                SizedBox(height: 24),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -839,12 +866,12 @@ class _LoginPageState extends State<LoginPage> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _handleSignIn,
+              onPressed: (_isFormValid && !_isLoading) ? _handleSignIn : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: textLight,
-                disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
-                disabledForegroundColor: textLight.withOpacity(0.7),
+                disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
+                disabledForegroundColor: textLight.withValues(alpha: 0.5),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
